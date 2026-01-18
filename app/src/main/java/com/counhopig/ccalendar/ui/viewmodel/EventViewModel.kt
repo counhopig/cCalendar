@@ -10,10 +10,15 @@ import java.time.LocalTime
 class EventViewModel : ViewModel() {
     private val _events = mutableStateListOf<Event>()
     val events: SnapshotStateList<Event> = _events
+    
+    // Removed sample events for system calendar integration
 
-    init {
-        // 添加一些示例事件
-        addSampleEvents()
+    fun loadSystemEvents(context: android.content.Context) {
+        val repository = com.counhopig.ccalendar.data.SystemCalendarRepository(context)
+        val systemEvents = repository.getSystemEvents()
+        
+        _events.clear()
+        _events.addAll(systemEvents)
     }
 
     fun addEvent(event: Event) {
@@ -44,59 +49,5 @@ class EventViewModel : ViewModel() {
             val eventDate = it.date
             eventDate.year == yearMonth.year && eventDate.month == yearMonth.month 
         }
-    }
-
-    private fun addSampleEvents() {
-        val today = LocalDate.now()
-        
-        // 今天的事件
-        addEvent(Event(
-            title = "团队会议",
-            description = "每周项目进度同步",
-            date = today,
-            startTime = LocalTime.of(14, 0),
-            endTime = LocalTime.of(15, 30),
-            color = androidx.compose.ui.graphics.Color(0xFF7C5CFF),
-            reminderMinutes = 15
-        ))
-
-        addEvent(Event(
-            title = "健身房",
-            description = "力量训练",
-            date = today,
-            startTime = LocalTime.of(18, 0),
-            endTime = LocalTime.of(19, 30),
-            color = androidx.compose.ui.graphics.Color(0xFF4CAF50),
-            isAllDay = false
-        ))
-
-        // 明天的全天事件
-        addEvent(Event(
-            title = "生日派对",
-            description = "朋友的生日庆祝",
-            date = today.plusDays(1),
-            isAllDay = true,
-            color = androidx.compose.ui.graphics.Color(0xFFFF9800)
-        ))
-
-        // 后天的事件
-        addEvent(Event(
-            title = "牙医预约",
-            description = "定期检查",
-            date = today.plusDays(2),
-            startTime = LocalTime.of(10, 30),
-            endTime = LocalTime.of(11, 15),
-            color = androidx.compose.ui.graphics.Color(0xFF2196F3),
-            reminderMinutes = 60
-        ))
-
-        // 上周的事件（演示用）
-        addEvent(Event(
-            title = "项目交付",
-            description = "完成最终版本",
-            date = today.minusDays(7),
-            isAllDay = true,
-            color = androidx.compose.ui.graphics.Color(0xFF9C27B0)
-        ))
     }
 }

@@ -44,14 +44,27 @@ import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import androidx.compose.material.icons.filled.Refresh
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun MonthScreen(
     modifier: Modifier = Modifier,
-    viewModel: EventViewModel = EventViewModel()
+    viewModel: EventViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val locale = remember { Locale.getDefault() }
     val today = remember { LocalDate.now() }
+    var selectedDate by remember { mutableStateOf(today) }
 
     var month by remember { mutableStateOf(YearMonth.from(today)) }
 
@@ -63,14 +76,34 @@ fun MonthScreen(
         )
     )
 
+    // Permission launcher
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.loadSystemEvents(context)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val permission = Manifest.permission.READ_CALENDAR
+        if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
+            viewModel.loadSystemEvents(context)
+        } else {
+            launcher.launch(permission)
+        }
+    }
+
     val onDateClick = { date: LocalDate ->
-        // TODO: 处理日期点击，打开事件添加/查看界面
+        selectedDate = date
     }
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(bg)
+            .statusBarsPadding()
+            .navigationBarsPadding()
             .padding(16.dp)
     ) {
         Column(
@@ -81,18 +114,27 @@ fun MonthScreen(
                 title = month.month.getDisplayName(TextStyle.FULL, locale),
                 subtitle = month.year.toString(),
                 onPrev = { month = month.minusMonths(1) },
-                onNext = { month = month.plusMonths(1) }
+                onNext = { month = month.plusMonths(1) },
+                onSync = {
+                    val permission = Manifest.permission.READ_CALENDAR
+                    if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
+                        viewModel.loadSystemEvents(context)
+                    } else {
+                        launcher.launch(permission)
+                    }
+                }
             )
 
             MonthCard(
                 month = month,
                 today = today,
+                selectedDate = selectedDate,
                 locale = locale,
                 viewModel = viewModel,
                 onDateClick = onDateClick
             )
 
-            AgendaCard(today = today, viewModel = viewModel)
+            AgendaCard(selectedDate = selectedDate, viewModel = viewModel)
         }
     }
 }
@@ -102,7 +144,8 @@ private fun Header(
     title: String,
     subtitle: String,
     onPrev: () -> Unit,
-    onNext: () -> Unit
+    onNext: () -> Unit,
+    onSync: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -110,7 +153,7 @@ private fun Header(
             .padding(horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.fillMaxWidth().weight(1f, fill = true)) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 color = Color(0xFFEAF0FF),
@@ -124,8 +167,10 @@ private fun Header(
             )
         }
 
-        PillButton(text = "‹", onClick = onPrev)
+        PillIconButton(imageVector = Icons.Default.Refresh, onClick = onSync)
         Spacer(Modifier.size(10.dp))
+        PillButton(text = "‹", onClick = onPrev)
+        Spacer(Modifier.size(5.dp))
         PillButton(text = "›", onClick = onNext)
     }
 }
@@ -150,9 +195,29 @@ private fun PillButton(text: String, onClick: () -> Unit) {
 }
 
 @Composable
+private fun PillIconButton(imageVector: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color(0xFF151F3A))
+            .clickable(onClick = onClick)
+            .padding(10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = imageVector,
+            contentDescription = null,
+            tint = Color(0xFFEAF0FF),
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+@Composable
 private fun MonthCard(
     month: YearMonth,
     today: LocalDate,
+    selectedDate: LocalDate,
     locale: Locale,
     viewModel: EventViewModel,
     onDateClick: (LocalDate) -> Unit
@@ -172,6 +237,7 @@ private fun MonthCard(
             MonthGrid(
                 month = month,
                 today = today,
+                selectedDate = selectedDate,
                 viewModel = viewModel,
                 onDateClick = onDateClick
             )
@@ -208,6 +274,7 @@ private fun WeekHeader(locale: Locale) {
 private fun MonthGrid(
     month: YearMonth,
     today: LocalDate,
+    selectedDate: LocalDate,
     viewModel: EventViewModel,
     onDateClick: (LocalDate) -> Unit
 ) {
@@ -226,10 +293,12 @@ private fun MonthGrid(
 
                     val cellDate = if (inMonth) month.atDay(day) else null
                     val isToday = cellDate == today
+                    val isSelected = cellDate == selectedDate
 
                     DayCell(
                         text = if (inMonth) day.toString() else "",
                         isToday = isToday,
+                        isSelected = isSelected,
                         isInMonth = inMonth,
                         eventCount = if (cellDate != null) viewModel.getEventsForDate(cellDate).size else 0,
                         modifier = Modifier.weight(1f),
@@ -248,18 +317,20 @@ private fun MonthGrid(
 private fun DayCell(
     text: String,
     isToday: Boolean,
+    isSelected: Boolean,
     isInMonth: Boolean,
     eventCount: Int = 0,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
 ) {
     val bg = when {
-        isToday -> Color(0xFF7C5CFF)
+        isSelected -> Color(0xFF7C5CFF)
         else -> Color.Transparent
     }
 
     val textColor = when {
-        isToday -> Color.White
+        isSelected -> Color.White
+        isToday -> Color(0xFF7C5CFF)
         isInMonth -> Color(0xFFEAF0FF)
         else -> Color(0xFFB7C4E6)
     }
@@ -281,7 +352,7 @@ private fun DayCell(
                 text = text,
                 color = textColor,
                 fontSize = 14.sp,
-                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Medium
+                fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Medium
             )
             if (eventCount > 0) {
                 Spacer(Modifier.height(2.dp))
@@ -294,7 +365,7 @@ private fun DayCell(
                             modifier = Modifier
                                 .size(4.dp)
                                 .clip(RoundedCornerShape(50))
-                                .background(if (isToday) Color.White else Color(0xFF7C5CFF))
+                                .background(if (isSelected) Color.White else Color(0xFF7C5CFF))
                                 .padding(horizontal = 1.dp)
                         )
                     }
@@ -305,7 +376,7 @@ private fun DayCell(
 }
 
 @Composable
-private fun AgendaCard(today: LocalDate, viewModel: EventViewModel) {
+private fun AgendaCard(selectedDate: LocalDate, viewModel: EventViewModel) {
     Surface(
         tonalElevation = 0.dp,
         shape = RoundedCornerShape(22.dp),
@@ -316,19 +387,20 @@ private fun AgendaCard(today: LocalDate, viewModel: EventViewModel) {
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
+            val titleText = if (selectedDate == LocalDate.now()) "今日日程" else "${selectedDate.monthValue}月${selectedDate.dayOfMonth}日"
             Text(
-                text = "今日日程",
+                text = titleText,
                 color = Color(0xFFEAF0FF),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(Modifier.height(6.dp))
             
-            val events = viewModel.getEventsForDate(today)
+            val events = viewModel.getEventsForDate(selectedDate)
             
             if (events.isEmpty()) {
                 Text(
-                    text = "${today} · 暂无日程",
+                    text = "${selectedDate} · 暂无日程",
                     color = Color(0xFFB7C4E6),
                     fontSize = 13.sp
                 )

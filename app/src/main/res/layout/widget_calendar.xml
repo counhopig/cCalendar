@@ -21,7 +21,7 @@
             android:layout_centerVertical="true"
             android:contentDescription="Previous"
             android:padding="4dp"
-            app:tint="#EAF0FF" />
+            android:tint="#EAF0FF" />
 
         <TextView
             android:id="@+id/widget_header"
@@ -43,7 +43,7 @@
             android:layout_centerVertical="true"
             android:contentDescription="Next"
             android:padding="4dp"
-            app:tint="#EAF0FF" />
+            android:tint="#EAF0FF" />
 
     </RelativeLayout>
 
