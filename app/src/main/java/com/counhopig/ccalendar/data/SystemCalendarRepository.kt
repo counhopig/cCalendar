@@ -9,17 +9,64 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
-import java.time.ZoneId 
+import com.counhopig.ccalendar.ui.model.Calendar
+import java.time.YearMonth
+import java.time.ZoneId
+import android.content.ContentValues
+import java.util.TimeZone
 
 class SystemCalendarRepository(private val context: Context) {
 
-    fun getSystemEvents(): List<Event> {
+    fun getCalendars(): List<Calendar> {
+        val calendars = mutableListOf<Calendar>()
+        val projection = arrayOf(
+            CalendarContract.Calendars._ID,
+            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+            CalendarContract.Calendars.CALENDAR_COLOR
+        )
+
+        try {
+            val cursor = context.contentResolver.query(
+                CalendarContract.Calendars.CONTENT_URI,
+                projection,
+                null,
+                null,
+                null
+            )
+
+            cursor?.use {
+                val idIdx = it.getColumnIndex(CalendarContract.Calendars._ID)
+                val nameIdx = it.getColumnIndex(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME)
+                val colorIdx = it.getColumnIndex(CalendarContract.Calendars.CALENDAR_COLOR)
+
+                while (it.moveToNext()) {
+                    val id = if (idIdx != -1) it.getLong(idIdx) else -1
+                    val name = if (nameIdx != -1) it.getString(nameIdx) ?: "Unnamed" else "Unnamed"
+                    val colorInt = if (colorIdx != -1) it.getInt(colorIdx) else 0
+                    
+                    if (id != -1L) {
+                        calendars.add(Calendar(id, name, Color(colorInt)))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return calendars
+    }
+
+    fun getSystemEvents(calendarIds: Set<Long>, yearMonth: YearMonth): List<Event> {
+        if (calendarIds.isEmpty()) {
+            return emptyList()
+        }
+
         val events = mutableListOf<Event>()
         
-        // Define range: +/- 1 year from now
-        val now = Instant.now()
-        val startMillis = now.minusSeconds(86400 * 365).toEpochMilli()
-        val endMillis = now.plusSeconds(86400 * 365).toEpochMilli()
+        val startOfMonth = yearMonth.minusMonths(1).atDay(1)
+        val endOfMonth = yearMonth.plusMonths(1).atEndOfMonth()
+        val startMillis = startOfMonth.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val endMillis = endOfMonth.atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
 
         val builder = CalendarContract.Instances.CONTENT_URI.buildUpon()
         ContentUris.appendId(builder, startMillis)
@@ -32,14 +79,17 @@ class SystemCalendarRepository(private val context: Context) {
             CalendarContract.Instances.BEGIN,
             CalendarContract.Instances.END,
             CalendarContract.Instances.ALL_DAY,
-            CalendarContract.Instances.DISPLAY_COLOR
+            CalendarContract.Instances.DISPLAY_COLOR,
+            CalendarContract.Instances.CALENDAR_ID
         )
+        
+        val selection = "${CalendarContract.Instances.CALENDAR_ID} IN (${calendarIds.joinToString(",")})"
 
         try {
             val cursor = context.contentResolver.query(
                 builder.build(),
                 projection,
-                null,
+                selection,
                 null,
                 null
             )
@@ -104,5 +154,64 @@ class SystemCalendarRepository(private val context: Context) {
             e.printStackTrace()
         }
         return events
+    }
+
+
+    fun addEvent(event: Event, calendarId: Long = 1): Long? {
+        try {
+            val startMillis = event.date.atTime(event.startTime ?: LocalTime.MIDNIGHT)
+                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+            val endMillis = event.date.atTime(event.endTime ?: LocalTime.MIDNIGHT.plusHours(1))
+                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            
+            val values = ContentValues().apply {
+                put(CalendarContract.Events.DTSTART, startMillis)
+                put(CalendarContract.Events.DTEND, endMillis)
+                put(CalendarContract.Events.TITLE, event.title)
+                put(CalendarContract.Events.DESCRIPTION, event.description)
+                put(CalendarContract.Events.CALENDAR_ID, calendarId)
+                put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+                put(CalendarContract.Events.ALL_DAY, if (event.isAllDay) 1 else 0)
+            }
+
+            val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+            return uri?.lastPathSegment?.toLong()
+        } catch (e: SecurityException) {
+            e.printStackTrace()
+            return null
+        }
+    }
+
+    fun updateEvent(event: Event) {
+        try {
+            val startMillis = event.date.atTime(event.startTime ?: LocalTime.MIDNIGHT)
+                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+            val endMillis = event.date.atTime(event.endTime ?: LocalTime.MIDNIGHT.plusHours(1))
+                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+            val values = ContentValues().apply {
+                put(CalendarContract.Events.DTSTART, startMillis)
+                put(CalendarContract.Events.DTEND, endMillis)
+                put(CalendarContract.Events.TITLE, event.title)
+                put(CalendarContract.Events.DESCRIPTION, event.description)
+                put(CalendarContract.Events.ALL_DAY, if (event.isAllDay) 1 else 0)
+            }
+
+            val updateUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, event.id)
+            context.contentResolver.update(updateUri, values, null, null)
+        } catch (e: SecurityException) {
+            e.printStackTrace()
+        }
+    }
+
+    fun deleteEvent(eventId: Long) {
+        try {
+            val deleteUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
+            context.contentResolver.delete(deleteUri, null, null)
+        } catch (e: SecurityException) {
+            e.printStackTrace()
+        }
     }
 }

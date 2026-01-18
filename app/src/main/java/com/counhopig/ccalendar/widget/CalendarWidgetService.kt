@@ -48,7 +48,11 @@ class CalendarRemoteViewsFactory(
         if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CALENDAR) 
             == PackageManager.PERMISSION_GRANTED) {
             
-            val allEvents = repository.getSystemEvents()
+            val calendars = repository.getCalendars()
+            val calendarIds = calendars.map { it.id }.toSet()
+            val yearMonth = YearMonth.now()
+
+            val allEvents = repository.getSystemEvents(calendarIds, yearMonth)
             
             // Sort events to keep consistent slots
             // Sorting strategy: AllDay first, then longer duration first, then start time, then title, then ID.

@@ -1,10 +1,10 @@
 package com.counhopig.ccalendar.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,29 +13,46 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.Icon
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.counhopig.ccalendar.ui.model.Event
 import com.counhopig.ccalendar.ui.theme.CCalendarTheme
 import com.counhopig.ccalendar.ui.viewmodel.EventViewModel
 import java.time.DayOfWeek
@@ -43,30 +60,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.platform.LocalContext
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
-import androidx.compose.material.icons.filled.Refresh
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.util.lerp 
 import kotlin.math.absoluteValue
-import com.counhopig.ccalendar.ui.model.Event
-import java.time.LocalTime
 
 
 
@@ -83,37 +77,59 @@ fun MonthScreen(
 
     val initialPage = Int.MAX_VALUE / 2
     val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { Int.MAX_VALUE })
-    
+
     val currentMonth = remember(pagerState.currentPage) {
         val monthsToAdd = pagerState.currentPage - initialPage
         YearMonth.from(today).plusMonths(monthsToAdd.toLong())
     }
 
-    // Sheet state
-    var showSheet by remember { mutableStateOf(false) }
+    // Sheet states
+    var showEventEditSheet by remember { mutableStateOf(false) }
+    var showCalendarSheet by remember { mutableStateOf(false) }
     var eventToEdit by remember { mutableStateOf<Event?>(null) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val eventEditSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val calendarSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    if (showSheet) {
+    val icsImporter = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            viewModel.importIcs(context, it)
+            showCalendarSheet = false
+        }
+    }
+
+    if (showEventEditSheet) {
         EventEditSheet(
             event = eventToEdit,
             selectedDate = selectedDate,
-            onDismiss = { showSheet = false },
-            onSave = { event -> 
+            onDismiss = { showEventEditSheet = false },
+            onSave = { event ->
                 if (eventToEdit == null) {
-                    viewModel.addEvent(event)
+                    viewModel.addEvent(event, context)
                 } else {
-                    viewModel.updateEvent(event)
+                    viewModel.updateEvent(event, context)
                 }
-                showSheet = false
+                showEventEditSheet = false
             },
-            onDelete = { id -> viewModel.deleteEvent(id) },
-            sheetState = sheetState
+            onDelete = { id ->
+                viewModel.deleteEvent(id, context)
+                showEventEditSheet = false
+            },
+            sheetState = eventEditSheetState
+        )
+    }
+
+    if (showCalendarSheet) {
+        CalendarSelectionSheet(
+            viewModel = viewModel,
+            onDismiss = { showCalendarSheet = false },
+            onImportIcs = { icsImporter.launch("text/calendar") },
+            sheetState = calendarSheetState
         )
     }
 
     val bg = Brush.verticalGradient(
-
         listOf(
             Color(0xFF0B1220),
             Color(0xFF0B1220),
@@ -121,22 +137,14 @@ fun MonthScreen(
         )
     )
 
-    // Permission launcher
-    val launcher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            viewModel.loadSystemEvents(context)
-        }
+    // Initial load
+    LaunchedEffect(Unit) {
+        viewModel.loadCalendars(context)
     }
 
-    LaunchedEffect(Unit) {
-        val permission = Manifest.permission.READ_CALENDAR
-        if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
-            viewModel.loadSystemEvents(context)
-        } else {
-            launcher.launch(permission)
-        }
+    // Reload events when month or selection changes
+    LaunchedEffect(currentMonth, viewModel.selectedCalendarIds) {
+        viewModel.loadSystemEvents(context, currentMonth)
     }
 
     val onDateClick = { date: LocalDate ->
@@ -157,7 +165,8 @@ fun MonthScreen(
         ) {
             Header(
                 title = currentMonth.month.getDisplayName(TextStyle.FULL, locale),
-                subtitle = currentMonth.year.toString()
+                subtitle = currentMonth.year.toString(),
+                onSettingsClick = { showCalendarSheet = true }
             )
 
             HorizontalPager(
@@ -168,24 +177,17 @@ fun MonthScreen(
                     val monthsToAdd = page - initialPage
                     YearMonth.from(today).plusMonths(monthsToAdd.toLong())
                 }
-                
+
                 Box(
                     modifier = Modifier.graphicsLayer {
-                        // Calculate the absolute offset for the current page from the
-                        // scroll position. We use the absolute value which allows us to mirror
-                        // any effects for both directions
                         val pageOffset = (
                             (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
                         ).absoluteValue
-
-                        // We animate the alpha, between 50% and 100%
                         alpha = lerp(
                             start = 0.5f,
                             stop = 1f,
                             fraction = 1f - pageOffset.coerceIn(0f, 1f)
                         )
-                        
-                        // Scale slightly
                         scaleX = lerp(
                             start = 0.9f,
                             stop = 1f,
@@ -206,15 +208,15 @@ fun MonthScreen(
             }
 
             AgendaCard(
-                selectedDate = selectedDate, 
+                selectedDate = selectedDate,
                 viewModel = viewModel,
                 onAddClick = {
                     eventToEdit = null
-                    showSheet = true
+                    showEventEditSheet = true
                 },
                 onEventClick = { event ->
                     eventToEdit = event
-                    showSheet = true
+                    showEventEditSheet = true
                 }
             )
         }
@@ -224,7 +226,8 @@ fun MonthScreen(
 @Composable
 private fun Header(
     title: String,
-    subtitle: String
+    subtitle: String,
+    onSettingsClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -245,6 +248,14 @@ private fun Header(
                 fontSize = 14.sp
             )
         }
+        Icon(
+            imageVector = Icons.Default.Settings,
+            contentDescription = "Settings",
+            tint = Color(0xFFB7C4E6),
+            modifier = Modifier
+                .size(24.dp)
+                .clickable(onClick = onSettingsClick)
+        )
     }
 }
 
