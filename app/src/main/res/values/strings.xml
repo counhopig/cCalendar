@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">cCalendar</string>
+    <string name="widget_calendar_description">漂亮的月视图日历</string>
+</resources>
