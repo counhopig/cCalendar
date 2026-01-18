@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.ContextCompat
 import com.counhopig.ccalendar.R
 import com.counhopig.ccalendar.data.SystemCalendarRepository
+import com.counhopig.ccalendar.data.WidgetSettingsRepository
 import com.counhopig.ccalendar.ui.model.Event
 import java.time.LocalDate
 import java.time.LocalTime
@@ -34,12 +35,18 @@ class CalendarRemoteViewsFactory(
     // Store daily events in a map
     private val eventsMap = mutableMapOf<LocalDate, List<Event>>()
     private val repository = SystemCalendarRepository(context)
+    private val settingsRepo = WidgetSettingsRepository(context)
+    private var fontColor = android.graphics.Color.parseColor("#EAF0FF") // Default
     
     override fun onCreate() {
         // No-op
     }
 
     override fun onDataSetChanged() {
+        // Reload settings
+        val settings = settingsRepo.getSettings()
+        fontColor = settings.fontColor
+        
         loadDays()
         loadEvents()
     }
@@ -136,10 +143,10 @@ class CalendarRemoteViewsFactory(
              
              // Check if this cell represents "Today"
              if (today == cellDate) {
-                 views.setTextColor(R.id.cell_day_text, Color.WHITE)
+                 views.setTextColor(R.id.cell_day_text, Color.WHITE) // Keep Today White for visibility on highlight
                  views.setInt(R.id.cell_day_text, "setBackgroundResource", R.drawable.widget_today_bg)
              } else {
-                 views.setTextColor(R.id.cell_day_text, Color.parseColor("#EAF0FF"))
+                 views.setTextColor(R.id.cell_day_text, fontColor)
                  views.setInt(R.id.cell_day_text, "setBackgroundResource", 0)
              }
              

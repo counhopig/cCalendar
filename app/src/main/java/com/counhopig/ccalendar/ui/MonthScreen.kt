@@ -27,6 +27,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -87,6 +89,7 @@ fun MonthScreen(
     // Sheet states
     var showEventEditSheet by remember { mutableStateOf(false) }
     var showCalendarSheet by remember { mutableStateOf(false) }
+    var showWidgetSettingsSheet by remember { mutableStateOf(false) }
     var eventToEdit by remember { mutableStateOf<Event?>(null) }
     val eventEditSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val calendarSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -131,6 +134,13 @@ fun MonthScreen(
         )
     }
 
+    if (showWidgetSettingsSheet) {
+        WidgetSettingsSheet(
+            viewModel = viewModel,
+            onDismissRequest = { showWidgetSettingsSheet = false }
+        )
+    }
+
     val bg = Brush.verticalGradient(
         listOf(
             Color(0xFF0B1220),
@@ -172,7 +182,8 @@ fun MonthScreen(
                 Header(
                     title = currentMonth.month.getDisplayName(TextStyle.FULL, locale),
                     subtitle = currentMonth.year.toString(),
-                    onSettingsClick = { showCalendarSheet = true }
+                    onSettingsClick = { showCalendarSheet = true },
+                    onWidgetSettingsClick = { showWidgetSettingsSheet = true }
                 )
 
                 HorizontalPager(
@@ -234,8 +245,11 @@ fun MonthScreen(
 private fun Header(
     title: String,
     subtitle: String,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onWidgetSettingsClick: () -> Unit
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -255,14 +269,38 @@ private fun Header(
                 fontSize = 14.sp
             )
         }
-        Icon(
-            imageVector = Icons.Default.Settings,
-            contentDescription = "Settings",
-            tint = Color(0xFFB7C4E6),
-            modifier = Modifier
-                .size(24.dp)
-                .clickable(onClick = onSettingsClick)
-        )
+        
+        Box {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Settings",
+                tint = Color(0xFFB7C4E6),
+                modifier = Modifier
+                    .size(24.dp)
+                    .clickable(onClick = { showMenu = true })
+            )
+            
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+                modifier = Modifier.background(Color(0xFF151F3A))
+            ) {
+                DropdownMenuItem(
+                    text = { Text("日历管理", color = Color(0xFFEAF0FF)) },
+                    onClick = {
+                        onSettingsClick()
+                        showMenu = false
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("小组件设置", color = Color(0xFFEAF0FF)) },
+                    onClick = {
+                        onWidgetSettingsClick()
+                        showMenu = false
+                    }
+                )
+            }
+        }
     }
 }
 

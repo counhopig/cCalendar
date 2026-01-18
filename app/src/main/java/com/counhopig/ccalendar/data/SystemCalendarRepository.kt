@@ -63,6 +63,11 @@ class SystemCalendarRepository(val context: Context) {
                     val id = if (idIdx != -1) it.getLong(idIdx) else -1
                     val name = if (nameIdx != -1) it.getString(nameIdx) ?: "Unnamed" else "Unnamed"
                     val colorInt = if (colorIdx != -1) it.getInt(colorIdx) else 0
+
+                    // Filter out problematic calendars that effectively don't work or are system artifacts
+                    if (name == "calendar_displayname_xiaomi" || name == "calendar_displayname_birthday") {
+                        continue
+                    }
                     
                     if (id != -1L) {
                         calendars.add(Calendar(id, name, Color(colorInt)))
@@ -204,19 +209,40 @@ class SystemCalendarRepository(val context: Context) {
 
     fun addEvent(event: Event, calendarId: Long = 1): Long? {
         try {
-            val startMillis = event.originalStartDate.atTime(event.startTime ?: LocalTime.MIDNIGHT)
-                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val startMillis: Long
+            val endMillis: Long
+            val eventTimezone: String
 
-            val endMillis = event.originalEndDate.atTime(event.endTime ?: LocalTime.MIDNIGHT.plusHours(1))
-                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-            
+            if (event.isAllDay) {
+                // All-day events: UTC midnight using java.util.Calendar to be safe
+                val utc = TimeZone.getTimeZone("UTC")
+                val cal = java.util.Calendar.getInstance(utc)
+                cal.set(event.originalStartDate.year, event.originalStartDate.monthValue - 1, event.originalStartDate.dayOfMonth, 0, 0, 0)
+                cal.set(java.util.Calendar.MILLISECOND, 0)
+                startMillis = cal.timeInMillis
+                
+                // End date is start date + duration (in days)
+                // For safety, let's calculate end millis based on originalEndDate + 1 day
+                cal.set(event.originalEndDate.year, event.originalEndDate.monthValue - 1, event.originalEndDate.dayOfMonth, 0, 0, 0)
+                cal.add(java.util.Calendar.DAY_OF_MONTH, 1)
+                endMillis = cal.timeInMillis
+                
+                eventTimezone = "UTC"
+            } else {
+                startMillis = event.originalStartDate.atTime(event.startTime ?: LocalTime.MIDNIGHT)
+                    .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                endMillis = event.originalEndDate.atTime(event.endTime ?: LocalTime.MIDNIGHT.plusHours(1))
+                    .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                eventTimezone = TimeZone.getDefault().id
+            }
+
             val values = ContentValues().apply {
                 put(CalendarContract.Events.DTSTART, startMillis)
                 put(CalendarContract.Events.DTEND, endMillis)
                 put(CalendarContract.Events.TITLE, event.title)
                 put(CalendarContract.Events.DESCRIPTION, event.description)
                 put(CalendarContract.Events.CALENDAR_ID, calendarId)
-                put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+                put(CalendarContract.Events.EVENT_TIMEZONE, eventTimezone)
                 put(CalendarContract.Events.ALL_DAY, if (event.isAllDay) 1 else 0)
                 put(CalendarContract.Events.HAS_ALARM, if (event.reminderMinutes > 0) 1 else 0)
             }
@@ -242,11 +268,26 @@ class SystemCalendarRepository(val context: Context) {
 
     fun updateEvent(event: Event) {
         try {
-            val startMillis = event.originalStartDate.atTime(event.startTime ?: LocalTime.MIDNIGHT)
-                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-
-            val endMillis = event.originalEndDate.atTime(event.endTime ?: LocalTime.MIDNIGHT.plusHours(1))
-                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val startMillis: Long
+            val endMillis: Long
+            
+            if (event.isAllDay) {
+                // All-day events: UTC midnight using java.util.Calendar to be safe
+                val utc = TimeZone.getTimeZone("UTC")
+                val cal = java.util.Calendar.getInstance(utc)
+                cal.set(event.originalStartDate.year, event.originalStartDate.monthValue - 1, event.originalStartDate.dayOfMonth, 0, 0, 0)
+                cal.set(java.util.Calendar.MILLISECOND, 0)
+                startMillis = cal.timeInMillis
+                
+                cal.set(event.originalEndDate.year, event.originalEndDate.monthValue - 1, event.originalEndDate.dayOfMonth, 0, 0, 0)
+                cal.add(java.util.Calendar.DAY_OF_MONTH, 1)
+                endMillis = cal.timeInMillis
+            } else {
+                startMillis = event.originalStartDate.atTime(event.startTime ?: LocalTime.MIDNIGHT)
+                    .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                endMillis = event.originalEndDate.atTime(event.endTime ?: LocalTime.MIDNIGHT.plusHours(1))
+                    .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            }
 
             val values = ContentValues().apply {
                 put(CalendarContract.Events.DTSTART, startMillis)
@@ -256,6 +297,12 @@ class SystemCalendarRepository(val context: Context) {
                 put(CalendarContract.Events.ALL_DAY, if (event.isAllDay) 1 else 0)
                 put(CalendarContract.Events.CALENDAR_ID, event.calendarId)
                 put(CalendarContract.Events.HAS_ALARM, if (event.reminderMinutes > 0) 1 else 0)
+                // If switching between all-day and normal, timezone update is crucial
+                if(event.isAllDay) {
+                     put(CalendarContract.Events.EVENT_TIMEZONE, "UTC")
+                } else {
+                     put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+                }
             }
 
             val updateUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, event.id)

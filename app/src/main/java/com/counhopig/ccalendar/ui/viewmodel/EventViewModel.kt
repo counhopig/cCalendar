@@ -108,10 +108,18 @@ class EventViewModel : ViewModel() {
         updateWidgets(context)
     }
 
-    private fun updateWidgets(context: Context) {
+    fun updateWidgets(context: Context) {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val componentName = ComponentName(context, CalendarWidget::class.java)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+        
+        // Trigger onUpdate to refresh background/text colors
+        val intent = android.content.Intent(context, CalendarWidget::class.java)
+        intent.action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+        intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, appWidgetIds)
+        context.sendBroadcast(intent)
+
+        // Refresh collection data
         appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetIds, R.id.widget_grid_view)
     }
     
