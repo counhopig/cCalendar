@@ -14,6 +14,7 @@ import com.counhopig.ccalendar.R
 import com.counhopig.ccalendar.data.SystemCalendarRepository
 import com.counhopig.ccalendar.ui.model.Event
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.YearMonth
 
 class CalendarWidgetService : RemoteViewsService() {
@@ -47,14 +48,23 @@ class CalendarRemoteViewsFactory(
         if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CALENDAR) 
             == PackageManager.PERMISSION_GRANTED) {
             
-            // In a widget, loading all system events efficiently is key.
-            // We'll trust the repository to load a range.
-            // For better performance, we should ideally filter by the displayed month.
-            // The current simple repository loads year +/- 1.
             val allEvents = repository.getSystemEvents()
             
+            // Sort events to keep consistent slots
+            // Sorting strategy: AllDay first, then longer duration first, then start time, then title, then ID.
+            // But we need duration. Event doesn't have duration directly exposed in my Event class.
+            // Let's rely on StartTime. AllDay events have null startTime, treated as very start.
+            // But to connect bars, stability is most important. 
+            // If we sort by Title or ID, it's stable across days.
+            // Let's sort by Title for visual consistency of same-named events.
+            val sortedEvents = allEvents.sortedWith(compareBy(
+                { !it.isAllDay }, // All day first (true < false is false... wait. isAllDay=true => !isAllDay=false. false < true. So AllDay first)
+                { it.startTime ?: LocalTime.MIN },
+                { it.title }
+            ))
+
             eventsMap.clear()
-            allEvents.forEach { event ->
+            sortedEvents.forEach { event ->
                 val list = eventsMap.getOrPut(event.date) { mutableListOf() }
                 (list as MutableList).add(event)
             }
@@ -64,8 +74,8 @@ class CalendarRemoteViewsFactory(
     private fun loadDays() {
         days.clear()
         
-        // Load the saved date for this widget, or default to now
-        val dateInfo = CalendarWidget.loadDate(context, appWidgetId)
+        // Always show current month
+        val dateInfo = LocalDate.now()
         val month = YearMonth.from(dateInfo)
         
         val first = month.atDay(1)
@@ -112,7 +122,7 @@ class CalendarRemoteViewsFactory(
              if (day == -1) return views
 
              // Get the displayed month/year
-             val displayedDate = CalendarWidget.loadDate(context, appWidgetId)
+             val displayedDate = LocalDate.now()
              val cellDate = LocalDate.of(displayedDate.year, displayedDate.month, day)
              val today = LocalDate.now()
              
@@ -126,32 +136,54 @@ class CalendarRemoteViewsFactory(
              }
              
              // --- Load Events ---
-             val dailyEvents = eventsMap[cellDate]?.take(3)
+             val dailyEvents = eventsMap[cellDate]?.take(2) // Only show top 2 to fit
+             val allDailyEvents = eventsMap[cellDate] ?: emptyList()
              
-             if (!dailyEvents.isNullOrEmpty()) {
-                 // Slot 1
-                 if (dailyEvents.isNotEmpty()) {
-                     val e1 = dailyEvents[0]
-                     views.setViewVisibility(R.id.cell_event_1, View.VISIBLE)
-                     views.setTextViewText(R.id.cell_event_1_text, e1.title)
+             if (allDailyEvents.isNotEmpty()) {
+                 // Function to setup event view
+                 fun setupEventView(event: Event, bgParams: Pair<Int, Int>, textId: Int, bgId: Int, containerId: Int) {
+                     views.setViewVisibility(containerId, View.VISIBLE)
+                     views.setTextViewText(textId, event.title)
                      
-                     // Convert Color to int argb
-                     val c = e1.color.toArgb()
-                     views.setInt(R.id.cell_event_1_color, "setBackgroundColor", c)
+                     // Check neighbors for connection
+                     // We need to check if there is an event with SAME ID on prev/next day
+                     val prevDay = cellDate.minusDays(1)
+                     val nextDay = cellDate.plusDays(1)
+                     
+                     val prevEvents = eventsMap[prevDay] ?: emptyList()
+                     val nextEvents = eventsMap[nextDay] ?: emptyList()
+                     
+                     val continuesLeft = prevEvents.any { it.id == event.id }
+                     val continuesRight = nextEvents.any { it.id == event.id }
+                     
+                     val bgRes = when {
+                         continuesLeft && continuesRight -> R.drawable.shape_event_item_middle
+                         continuesLeft && !continuesRight -> R.drawable.shape_event_item_end
+                         !continuesLeft && continuesRight -> R.drawable.shape_event_item_start
+                         else -> R.drawable.shape_event_item_single
+                     }
+                     
+                     views.setImageViewResource(bgId, bgRes)
+                     val c = event.color.toArgb()
+                     views.setInt(bgId, "setColorFilter", c)
+
+                     // If middle/end, maybe hide text or keep it? 
+                     // Usually repeating text is fine, but maybe redundant if it's very short.
+                     // The requirement is "connected color block".
+                     // Text color - ensure contrast. If color is dark, text white. If light, text black.
+                     // Simple heuristic: default white text for calendar colors which are usually distinct.
+                 }
+
+                 if (allDailyEvents.isNotEmpty()) {
+                     setupEventView(allDailyEvents[0], 0 to 0, R.id.cell_event_1_text, R.id.cell_event_1_bg, R.id.cell_event_1)
                  }
                  
-                 // Slot 2 or More
-                 if (dailyEvents.size > 1) {
-                     if (dailyEvents.size == 2) {
-                        val e2 = dailyEvents[1]
-                        views.setViewVisibility(R.id.cell_event_2, View.VISIBLE)
-                        views.setTextViewText(R.id.cell_event_2_text, e2.title)
-                        val c = e2.color.toArgb()
-                        views.setInt(R.id.cell_event_2_color, "setBackgroundColor", c)
-                     } else {
-                         // More than 2 events, show dots
-                         views.setViewVisibility(R.id.cell_more_text, View.VISIBLE)
-                     }
+                 if (allDailyEvents.size > 1) {
+                     setupEventView(allDailyEvents[1], 0 to 0, R.id.cell_event_2_text, R.id.cell_event_2_bg, R.id.cell_event_2)
+                 }
+
+                 if (allDailyEvents.size > 2) {
+                     views.setViewVisibility(R.id.cell_more_text, View.VISIBLE)
                  }
              }
 

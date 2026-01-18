@@ -7,45 +7,23 @@
     android:orientation="vertical"
     android:padding="8dp">
 
-    <RelativeLayout
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingBottom="8dp">
-
-        <ImageView
-            android:id="@+id/widget_btn_prev"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:src="@android:drawable/ic_media_previous"
-            android:layout_alignParentStart="true"
-            android:layout_centerVertical="true"
-            android:contentDescription="Previous"
-            android:padding="4dp"
-            android:tint="#EAF0FF" />
+        android:paddingBottom="8dp"
+        android:gravity="center">
 
         <TextView
             android:id="@+id/widget_header"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
             android:gravity="center"
             android:text="Month Year"
             android:textColor="#EAF0FF"
             android:textSize="16sp"
             android:textStyle="bold" />
 
-        <ImageView
-            android:id="@+id/widget_btn_next"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:src="@android:drawable/ic_media_next"
-            android:layout_alignParentEnd="true"
-            android:layout_centerVertical="true"
-            android:contentDescription="Next"
-            android:padding="4dp"
-            android:tint="#EAF0FF" />
-
-    </RelativeLayout>
+    </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -67,7 +45,7 @@
         android:layout_height="match_parent"
         android:numColumns="7"
         android:verticalSpacing="4dp"
-        android:horizontalSpacing="4dp"
+        android:horizontalSpacing="0dp"
         android:stretchMode="columnWidth"
         android:gravity="center"
         android:listSelector="@android:color/transparent" />
