@@ -55,7 +55,22 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.compose.material.icons.filled.Refresh
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.util.lerp 
+import kotlin.math.absoluteValue
+import com.counhopig.ccalendar.ui.model.Event
+import java.time.LocalTime
 
+
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MonthScreen(
     modifier: Modifier = Modifier,
@@ -66,9 +81,39 @@ fun MonthScreen(
     val today = remember { LocalDate.now() }
     var selectedDate by remember { mutableStateOf(today) }
 
-    var month by remember { mutableStateOf(YearMonth.from(today)) }
+    val initialPage = Int.MAX_VALUE / 2
+    val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { Int.MAX_VALUE })
+    
+    val currentMonth = remember(pagerState.currentPage) {
+        val monthsToAdd = pagerState.currentPage - initialPage
+        YearMonth.from(today).plusMonths(monthsToAdd.toLong())
+    }
+
+    // Sheet state
+    var showSheet by remember { mutableStateOf(false) }
+    var eventToEdit by remember { mutableStateOf<Event?>(null) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    if (showSheet) {
+        EventEditSheet(
+            event = eventToEdit,
+            selectedDate = selectedDate,
+            onDismiss = { showSheet = false },
+            onSave = { event -> 
+                if (eventToEdit == null) {
+                    viewModel.addEvent(event)
+                } else {
+                    viewModel.updateEvent(event)
+                }
+                showSheet = false
+            },
+            onDelete = { id -> viewModel.deleteEvent(id) },
+            sheetState = sheetState
+        )
+    }
 
     val bg = Brush.verticalGradient(
+
         listOf(
             Color(0xFF0B1220),
             Color(0xFF0B1220),
@@ -111,30 +156,67 @@ fun MonthScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Header(
-                title = month.month.getDisplayName(TextStyle.FULL, locale),
-                subtitle = month.year.toString(),
-                onPrev = { month = month.minusMonths(1) },
-                onNext = { month = month.plusMonths(1) },
-                onSync = {
-                    val permission = Manifest.permission.READ_CALENDAR
-                    if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
-                        viewModel.loadSystemEvents(context)
-                    } else {
-                        launcher.launch(permission)
+                title = currentMonth.month.getDisplayName(TextStyle.FULL, locale),
+                subtitle = currentMonth.year.toString()
+            )
+
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxWidth()
+            ) { page ->
+                val monthForPage = remember(page) {
+                    val monthsToAdd = page - initialPage
+                    YearMonth.from(today).plusMonths(monthsToAdd.toLong())
+                }
+                
+                Box(
+                    modifier = Modifier.graphicsLayer {
+                        // Calculate the absolute offset for the current page from the
+                        // scroll position. We use the absolute value which allows us to mirror
+                        // any effects for both directions
+                        val pageOffset = (
+                            (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                        ).absoluteValue
+
+                        // We animate the alpha, between 50% and 100%
+                        alpha = lerp(
+                            start = 0.5f,
+                            stop = 1f,
+                            fraction = 1f - pageOffset.coerceIn(0f, 1f)
+                        )
+                        
+                        // Scale slightly
+                        scaleX = lerp(
+                            start = 0.9f,
+                            stop = 1f,
+                            fraction = 1f - pageOffset.coerceIn(0f, 1f)
+                        )
+                        scaleY = scaleX
                     }
+                ) {
+                    MonthCard(
+                        month = monthForPage,
+                        today = today,
+                        selectedDate = selectedDate,
+                        locale = locale,
+                        viewModel = viewModel,
+                        onDateClick = onDateClick
+                    )
+                }
+            }
+
+            AgendaCard(
+                selectedDate = selectedDate, 
+                viewModel = viewModel,
+                onAddClick = {
+                    eventToEdit = null
+                    showSheet = true
+                },
+                onEventClick = { event ->
+                    eventToEdit = event
+                    showSheet = true
                 }
             )
-
-            MonthCard(
-                month = month,
-                today = today,
-                selectedDate = selectedDate,
-                locale = locale,
-                viewModel = viewModel,
-                onDateClick = onDateClick
-            )
-
-            AgendaCard(selectedDate = selectedDate, viewModel = viewModel)
         }
     }
 }
@@ -142,10 +224,7 @@ fun MonthScreen(
 @Composable
 private fun Header(
     title: String,
-    subtitle: String,
-    onPrev: () -> Unit,
-    onNext: () -> Unit,
-    onSync: () -> Unit
+    subtitle: String
 ) {
     Row(
         modifier = Modifier
@@ -166,52 +245,11 @@ private fun Header(
                 fontSize = 14.sp
             )
         }
-
-        PillIconButton(imageVector = Icons.Default.Refresh, onClick = onSync)
-        Spacer(Modifier.size(10.dp))
-        PillButton(text = "‹", onClick = onPrev)
-        Spacer(Modifier.size(5.dp))
-        PillButton(text = "›", onClick = onNext)
     }
 }
 
-@Composable
-private fun PillButton(text: String, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(Color(0xFF151F3A))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            color = Color(0xFFEAF0FF),
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
 
-@Composable
-private fun PillIconButton(imageVector: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(Color(0xFF151F3A))
-            .clickable(onClick = onClick)
-            .padding(10.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = imageVector,
-            contentDescription = null,
-            tint = Color(0xFFEAF0FF),
-            modifier = Modifier.size(20.dp)
-        )
-    }
-}
+
 
 @Composable
 private fun MonthCard(
@@ -376,7 +414,12 @@ private fun DayCell(
 }
 
 @Composable
-private fun AgendaCard(selectedDate: LocalDate, viewModel: EventViewModel) {
+private fun AgendaCard(
+    selectedDate: LocalDate, 
+    viewModel: EventViewModel,
+    onAddClick: () -> Unit,
+    onEventClick: (Event) -> Unit
+) {
     Surface(
         tonalElevation = 0.dp,
         shape = RoundedCornerShape(22.dp),
@@ -387,17 +430,40 @@ private fun AgendaCard(selectedDate: LocalDate, viewModel: EventViewModel) {
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            val titleText = if (selectedDate == LocalDate.now()) "今日日程" else "${selectedDate.monthValue}月${selectedDate.dayOfMonth}日"
-            Text(
-                text = titleText,
-                color = Color(0xFFEAF0FF),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val titleText = if (selectedDate == LocalDate.now()) "今日日程" else "${selectedDate.monthValue}月${selectedDate.dayOfMonth}日"
+                Text(
+                    text = titleText,
+                    color = Color(0xFFEAF0FF),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0xFF151F3A))
+                        .clickable(onClick = onAddClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add",
+                        tint = Color(0xFFEAF0FF),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            
             Spacer(Modifier.height(6.dp))
-            
+
             val events = viewModel.getEventsForDate(selectedDate)
-            
+
             if (events.isEmpty()) {
                 Text(
                     text = "${selectedDate} · 暂无日程",
@@ -410,7 +476,7 @@ private fun AgendaCard(selectedDate: LocalDate, viewModel: EventViewModel) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(events) { event ->
-                        EventItem(event = event)
+                        EventItem(event = event, onClick = { onEventClick(event) })
                     }
                 }
             }
@@ -419,10 +485,11 @@ private fun AgendaCard(selectedDate: LocalDate, viewModel: EventViewModel) {
 }
 
 @Composable
-private fun EventItem(event: com.counhopig.ccalendar.ui.model.Event) {
+private fun EventItem(event: com.counhopig.ccalendar.ui.model.Event, onClick: () -> Unit) {
     Row(
         modifier = androidx.compose.ui.Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(vertical = 4.dp),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
     ) {
@@ -485,6 +552,8 @@ private fun EventItem(event: com.counhopig.ccalendar.ui.model.Event) {
         }
     }
 }
+
+
 
 @Preview(showBackground = true)
 @Composable
