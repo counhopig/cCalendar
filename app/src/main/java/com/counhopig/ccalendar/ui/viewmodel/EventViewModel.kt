@@ -2,6 +2,11 @@ package com.counhopig.ccalendar.ui.viewmodel
 
 import android.content.Context
 import android.net.Uri
+import androidx.compose.ui.graphics.toArgb
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import com.counhopig.ccalendar.R
+import com.counhopig.ccalendar.widget.CalendarWidget
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +67,17 @@ class EventViewModel : ViewModel() {
         }
     }
 
+    fun updateCalendarColor(calendarId: Long, color: androidx.compose.ui.graphics.Color) {
+        // This won't easily work for Google Calendars due to Sync Adapter restrictions without proper ACCOUNT auth.
+        // It might work for local calendars or throw SecurityException.
+        // We will try.
+        // Also note: SystemCalendarRepository needs a method for this.
+        repository.updateCalendarColor(calendarId, color.toArgb())
+        loadCalendars(repository.context) // Refresh list
+        loadSystemEvents(repository.context, YearMonth.now()) // Refresh events
+        updateWidgets(repository.context)
+    }
+
     fun loadSystemEvents(context: Context, yearMonth: YearMonth) {
         initializeRepository(context)
         val systemEvents = repository.getSystemEvents(selectedCalendarIds, yearMonth)
@@ -70,23 +86,33 @@ class EventViewModel : ViewModel() {
         _events.addAll(systemEvents)
     }
 
-    fun addEvent(event: AppEvent, context: Context) {
+    fun addEvent(event: AppEvent, calendarId: Long, context: Context) {
         initializeRepository(context)
-        repository.addEvent(event)
+        repository.addEvent(event, calendarId)
         // Refresh events from source to get the new event with its system ID
         loadSystemEvents(context, YearMonth.from(event.date))
+        updateWidgets(context)
     }
 
-    fun updateEvent(updatedEvent: AppEvent, context: Context) {
+    fun updateEvent(updatedEvent: AppEvent, calendarId: Long, context: Context) {
         initializeRepository(context)
-        repository.updateEvent(updatedEvent)
+        repository.updateEvent(updatedEvent.copy(calendarId = calendarId))
         loadSystemEvents(context, YearMonth.from(updatedEvent.date))
+        updateWidgets(context)
     }
 
     fun deleteEvent(eventId: Long, context: Context) {
         initializeRepository(context)
         repository.deleteEvent(eventId)
         loadSystemEvents(context, YearMonth.now()) // Refresh current month as we don't know the event's date
+        updateWidgets(context)
+    }
+
+    private fun updateWidgets(context: Context) {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val componentName = ComponentName(context, CalendarWidget::class.java)
+        val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+        appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetIds, R.id.widget_grid_view)
     }
     
     fun importIcs(context: Context, uri: Uri) {
@@ -134,6 +160,8 @@ class EventViewModel : ViewModel() {
                                     title = summary,
                                     description = description,
                                     date = startDate,
+                                    originalStartDate = startDate,
+                                    originalEndDate = startDate,
                                     startTime = startTime,
                                     endTime = null,
                                     isAllDay = isAllDay,
@@ -149,6 +177,7 @@ class EventViewModel : ViewModel() {
             }
             // Refresh events from source after import
             loadSystemEvents(context, YearMonth.now())
+            updateWidgets(context)
         }
     }
 

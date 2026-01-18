@@ -4,71 +4,31 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ColorLens
-import androidx.compose.material.icons.filled.Subject
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SheetState
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.rememberTimePickerState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.counhopig.ccalendar.ui.model.Event
+import com.counhopig.ccalendar.ui.viewmodel.EventViewModel
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import androidx.compose.material.icons.automirrored.filled.Subject
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,8 +36,9 @@ import java.time.format.DateTimeFormatter
 fun EventEditSheet(
     event: Event?,
     selectedDate: LocalDate,
+    viewModel: EventViewModel,
     onDismiss: () -> Unit,
-    onSave: (Event) -> Unit,
+    onSave: (Event, Long) -> Unit,
     onDelete: ((Long) -> Unit)? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
@@ -90,6 +51,7 @@ fun EventEditSheet(
         EventEditContent(
             event = event,
             selectedDate = selectedDate,
+            viewModel = viewModel,
             onDismiss = onDismiss,
             onSave = onSave,
             onDelete = onDelete
@@ -102,30 +64,39 @@ fun EventEditSheet(
 fun EventEditContent(
     event: Event?,
     selectedDate: LocalDate,
+    viewModel: EventViewModel,
     onDismiss: () -> Unit,
-    onSave: (Event) -> Unit,
+    onSave: (Event, Long) -> Unit,
     onDelete: ((Long) -> Unit)? = null
 ) {
     var title by remember { mutableStateOf(event?.title ?: "") }
     var description by remember { mutableStateOf(event?.description ?: "") }
     var isAllDay by remember { mutableStateOf(event?.isAllDay ?: false) }
     
+    // Calendar state
+    var selectedCalendarId by remember { mutableStateOf(event?.calendarId ?: viewModel.calendars.firstOrNull()?.id ?: 1L) }
+    var showCalendarMenu by remember { mutableStateOf(false) }
+
     // Time & Date state
-    var date by remember { mutableStateOf(event?.date ?: selectedDate) }
+    var startDate by remember { mutableStateOf(event?.originalStartDate ?: selectedDate) }
+    var endDate by remember { mutableStateOf(event?.originalEndDate ?: selectedDate) }
     var startTime by remember { mutableStateOf(event?.startTime ?: LocalTime.now().plusHours(1).withMinute(0)) }
     var endTime by remember { mutableStateOf(event?.endTime ?: LocalTime.now().plusHours(2).withMinute(0)) }
     
-    // Color state
-    var selectedColor by remember { mutableStateOf(event?.color ?: EventColors.first()) }
-    
     // Dialog visibility states
-    var showDatePicker by remember { mutableStateOf(false) }
+    var showStartDatePicker by remember { mutableStateOf(false) }
+    var showEndDatePicker by remember { mutableStateOf(false) }
     var showStartTimePicker by remember { mutableStateOf(false) }
     var showEndTimePicker by remember { mutableStateOf(false) }
+    var showReminderMenu by remember { mutableStateOf(false) }
+    
+    // Reminder state
+    var selectedReminderMinutes by remember { mutableStateOf(event?.reminderMinutes ?: 0) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .padding(horizontal = 16.dp)
             .imePadding() // Handles keyboard
     ) {
@@ -152,13 +123,17 @@ fun EventEditContent(
                         id = event?.id ?: 0,
                         title = title.ifBlank { "无标题" },
                         description = description,
-                        date = date,
+                        date = startDate, // The `date` field is used for sorting/display, use startDate
+                        originalStartDate = startDate,
+                        originalEndDate = endDate,
                         startTime = if (isAllDay) null else startTime,
                         endTime = if (isAllDay) null else endTime,
                         isAllDay = isAllDay,
-                        color = selectedColor
+                        color = Color.Transparent, // Color is managed by Calendar
+                        calendarId = selectedCalendarId,
+                        reminderMinutes = selectedReminderMinutes
                     )
-                    onSave(newEvent)
+                    onSave(newEvent, selectedCalendarId)
                 },
                 enabled = true
             ) {
@@ -192,6 +167,87 @@ fun EventEditContent(
             )
 
             HorizontalDivider(color = Color(0xFF2C3549))
+            
+            // --- Calendar Selector ---
+            Box {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showCalendarMenu = true },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val currentCalendar = viewModel.calendars.find { it.id == selectedCalendarId }
+                    Icon(
+                        imageVector = Icons.Default.CalendarToday,
+                        contentDescription = null,
+                        tint = Color(0xFFB7C4E6),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Text(
+                        text = currentCalendar?.name ?: "Default",
+                        color = Color.White,
+                        fontSize = 16.sp
+                    )
+                }
+                DropdownMenu(
+                    expanded = showCalendarMenu,
+                    onDismissRequest = { showCalendarMenu = false }
+                ) {
+                    viewModel.calendars.forEach { calendar ->
+                        DropdownMenuItem(
+                            text = { Text(calendar.name) },
+                            onClick = {
+                                selectedCalendarId = calendar.id
+                                showCalendarMenu = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(color = Color(0xFF2C3549))
+
+            // --- Reminder Selector ---
+            val reminderOptions = mapOf(0 to "不提醒", 5 to "5分钟前", 15 to "15分钟前", 30 to "30分钟前", 60 to "1小时前")
+
+            Box {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showReminderMenu = true },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Notifications,
+                        contentDescription = null,
+                        tint = Color(0xFFB7C4E6),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Text(
+                        text = reminderOptions[selectedReminderMinutes] ?: "自定义",
+                        color = Color.White,
+                        fontSize = 16.sp
+                    )
+                }
+                DropdownMenu(
+                    expanded = showReminderMenu,
+                    onDismissRequest = { showReminderMenu = false }
+                ) {
+                    reminderOptions.forEach { (minutes, text) ->
+                        DropdownMenuItem(
+                            text = { Text(text) },
+                            onClick = {
+                                selectedReminderMinutes = minutes
+                                showReminderMenu = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(color = Color(0xFF2C3549))
 
             // --- Time Section ---
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -223,97 +279,45 @@ fun EventEditContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 40.dp) // Indent to align with text above
-                        .clickable { showDatePicker = true },
+                        .padding(start = 40.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = date.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日 EEEE")),
+                        text = startDate.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日")),
                         color = Color.White,
-                        fontSize = 16.sp
+                        fontSize = 16.sp,
+                        modifier = Modifier.clickable { showStartDatePicker = true }
                     )
-                }
-
-                if (!isAllDay) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 40.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                    if (!isAllDay) {
                         Text(
                             text = startTime.format(DateTimeFormatter.ofPattern("HH:mm")),
                             color = Color.White,
                             fontSize = 16.sp,
-                            modifier = Modifier
-                                .clickable { showStartTimePicker = true }
-                                .padding(vertical = 8.dp)
+                            modifier = Modifier.clickable { showStartTimePicker = true }
                         )
-                        Icon(
-                            painter = androidx.compose.ui.res.painterResource(android.R.drawable.ic_menu_today), // Just an arrow fallback or similar
-                            contentDescription = "to",
-                            tint = Color.Gray,
-                            modifier = Modifier.size(16.dp).background(Color.Transparent) // Placeholder
-                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 40.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = endDate.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日")),
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        modifier = Modifier.clickable { showEndDatePicker = true }
+                    )
+                    if (!isAllDay) {
                         Text(
                             text = endTime.format(DateTimeFormatter.ofPattern("HH:mm")),
                             color = Color.White,
                             fontSize = 16.sp,
-                            modifier = Modifier
-                                .clickable { showEndTimePicker = true }
-                                .padding(vertical = 8.dp)
+                            modifier = Modifier.clickable { showEndTimePicker = true }
                         )
-                    }
-                }
-            }
-
-            HorizontalDivider(color = Color(0xFF2C3549))
-
-            // --- Color Section ---
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.ColorLens,
-                        contentDescription = null,
-                        tint = Color(0xFFB7C4E6), // Icon color
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(Modifier.width(16.dp))
-                    Text("颜色", color = Color.White, fontSize = 16.sp)
-                }
-                
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 40.dp)
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    EventColors.forEach { color ->
-                        val isSelected = color == selectedColor
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                                .clickable { selectedColor = color }
-                                .then(
-                                    if (isSelected) Modifier.border(2.dp, Color.White, CircleShape) 
-                                    else Modifier
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = if (color.luminance() > 0.5) Color.Black else Color.White,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
                     }
                 }
             }
@@ -323,7 +327,7 @@ fun EventEditContent(
             // --- Description ---
             Row(modifier = Modifier.fillMaxWidth()) {
                 Icon(
-                    imageVector = Icons.Default.Subject,
+                    imageVector = Icons.AutoMirrored.Filled.Subject,
                     contentDescription = null,
                     tint = Color(0xFFB7C4E6),
                     modifier = Modifier
@@ -369,22 +373,51 @@ fun EventEditContent(
 
     // --- Pickers ---
 
-    if (showDatePicker) {
+    if (showStartDatePicker) {
         val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            initialSelectedDateMillis = startDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         )
         DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
+            onDismissRequest = { showStartDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        date = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                        startDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                        if (startDate.isAfter(endDate)) {
+                            endDate = startDate
+                        }
                     }
-                    showDatePicker = false
+                    showStartDatePicker = false
                 }) { Text("确定") }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("取消") }
+                TextButton(onClick = { showStartDatePicker = false }) { Text("取消") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showEndDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = endDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showEndDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val newEndDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                        // Allow end date to be same as start date or after
+                        if (!newEndDate.isBefore(startDate)) {
+                            endDate = newEndDate
+                        }
+                    }
+                    showEndDatePicker = false
+                }) { Text("确定") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEndDatePicker = false }) { Text("取消") }
             }
         ) {
             DatePicker(state = datePickerState)
@@ -401,8 +434,7 @@ fun EventEditContent(
             onConfirm = {
                 startTime = LocalTime.of(timePickerState.hour, timePickerState.minute)
                 showStartTimePicker = false
-                // Auto-adjust end time if needed
-                if (startTime.isAfter(endTime)) {
+                if (startDate == endDate && startTime.isAfter(endTime)) {
                     endTime = startTime.plusHours(1)
                 }
             }
@@ -469,4 +501,3 @@ fun Color.luminance(): Float {
     val b = blue
     return (0.2126f * r + 0.7152f * g + 0.0722f * b)
 }
-

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -103,12 +104,13 @@ fun MonthScreen(
         EventEditSheet(
             event = eventToEdit,
             selectedDate = selectedDate,
+            viewModel = viewModel,
             onDismiss = { showEventEditSheet = false },
-            onSave = { event ->
+            onSave = { event, calendarId ->
                 if (eventToEdit == null) {
-                    viewModel.addEvent(event, context)
+                    viewModel.addEvent(event, calendarId, context)
                 } else {
-                    viewModel.updateEvent(event, context)
+                    viewModel.updateEvent(event, calendarId, context)
                 }
                 showEventEditSheet = false
             },
@@ -151,74 +153,79 @@ fun MonthScreen(
         selectedDate = date
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(bg)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(16.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = Color.Transparent
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(bg)
+                .padding(innerPadding)
         ) {
-            Header(
-                title = currentMonth.month.getDisplayName(TextStyle.FULL, locale),
-                subtitle = currentMonth.year.toString(),
-                onSettingsClick = { showCalendarSheet = true }
-            )
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Header(
+                    title = currentMonth.month.getDisplayName(TextStyle.FULL, locale),
+                    subtitle = currentMonth.year.toString(),
+                    onSettingsClick = { showCalendarSheet = true }
+                )
 
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxWidth()
-            ) { page ->
-                val monthForPage = remember(page) {
-                    val monthsToAdd = page - initialPage
-                    YearMonth.from(today).plusMonths(monthsToAdd.toLong())
-                }
-
-                Box(
-                    modifier = Modifier.graphicsLayer {
-                        val pageOffset = (
-                            (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
-                        ).absoluteValue
-                        alpha = lerp(
-                            start = 0.5f,
-                            stop = 1f,
-                            fraction = 1f - pageOffset.coerceIn(0f, 1f)
-                        )
-                        scaleX = lerp(
-                            start = 0.9f,
-                            stop = 1f,
-                            fraction = 1f - pageOffset.coerceIn(0f, 1f)
-                        )
-                        scaleY = scaleX
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxWidth()
+                ) { page ->
+                    val monthForPage = remember(page) {
+                        val monthsToAdd = page - initialPage
+                        YearMonth.from(today).plusMonths(monthsToAdd.toLong())
                     }
-                ) {
-                    MonthCard(
-                        month = monthForPage,
-                        today = today,
-                        selectedDate = selectedDate,
-                        locale = locale,
-                        viewModel = viewModel,
-                        onDateClick = onDateClick
-                    )
-                }
-            }
 
-            AgendaCard(
-                selectedDate = selectedDate,
-                viewModel = viewModel,
-                onAddClick = {
-                    eventToEdit = null
-                    showEventEditSheet = true
-                },
-                onEventClick = { event ->
-                    eventToEdit = event
-                    showEventEditSheet = true
+                    Box(
+                        modifier = Modifier.graphicsLayer {
+                            val pageOffset = (
+                                (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                                ).absoluteValue
+                            alpha = lerp(
+                                start = 0.5f,
+                                stop = 1f,
+                                fraction = 1f - pageOffset.coerceIn(0f, 1f)
+                            )
+                            scaleX = lerp(
+                                start = 0.9f,
+                                stop = 1f,
+                                fraction = 1f - pageOffset.coerceIn(0f, 1f)
+                            )
+                            scaleY = scaleX
+                        }
+                    ) {
+                        MonthCard(
+                            month = monthForPage,
+                            today = today,
+                            selectedDate = selectedDate,
+                            locale = locale,
+                            viewModel = viewModel,
+                            onDateClick = onDateClick
+                        )
+                    }
                 }
-            )
+
+                AgendaCard(
+                    selectedDate = selectedDate,
+                    viewModel = viewModel,
+                    onAddClick = {
+                        eventToEdit = null
+                        showEventEditSheet = true
+                    },
+                    onEventClick = { event ->
+                        eventToEdit = event
+                        showEventEditSheet = true
+                    }
+                )
+            }
         }
     }
 }

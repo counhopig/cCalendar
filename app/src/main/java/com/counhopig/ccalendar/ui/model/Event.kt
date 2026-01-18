@@ -6,8 +6,11 @@ import java.time.LocalTime
 
 data class Event(
     val id: Long = 0,
+    val calendarId: Long = 1L,
     val title: String,
     val description: String = "",
+    val originalStartDate: LocalDate,
+    val originalEndDate: LocalDate,
     val date: LocalDate,
     val startTime: LocalTime? = null,
     val endTime: LocalTime? = null,

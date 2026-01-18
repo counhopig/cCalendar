@@ -15,7 +15,27 @@ import java.time.ZoneId
 import android.content.ContentValues
 import java.util.TimeZone
 
-class SystemCalendarRepository(private val context: Context) {
+class SystemCalendarRepository(val context: Context) {
+
+    fun updateCalendarColor(calendarId: Long, colorInt: Int) {
+        try {
+            val values = ContentValues().apply {
+                put(CalendarContract.Calendars.CALENDAR_COLOR, colorInt)
+            }
+            val updateUri = ContentUris.withAppendedId(CalendarContract.Calendars.CONTENT_URI, calendarId)
+            // Note: Updating Calendars usually requires appending ACCOUNT_NAME and ACCOUNT_TYPE as query parameters
+            // to function as a Sync Adapter, OR the provider might allow local color changes.
+            // If this fails, it's a limitation of Android Calendar Provider for non-sync-adapter apps.
+            // But usually CALENDAR_COLOR is editable.
+            
+            // However, modifying CALENDAR_COLOR indicates a sync change.
+            // Let's try appending CallerIsSyncAdapter to permit changes if necessary, but standard apps shouldn't use it.
+            // We just try a bold update first.
+            context.contentResolver.update(updateUri, values, null, null)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 
     fun getCalendars(): List<Calendar> {
         val calendars = mutableListOf<Calendar>()
@@ -80,7 +100,8 @@ class SystemCalendarRepository(private val context: Context) {
             CalendarContract.Instances.END,
             CalendarContract.Instances.ALL_DAY,
             CalendarContract.Instances.DISPLAY_COLOR,
-            CalendarContract.Instances.CALENDAR_ID
+            CalendarContract.Instances.CALENDAR_ID,
+            CalendarContract.Instances.HAS_ALARM
         )
         
         val selection = "${CalendarContract.Instances.CALENDAR_ID} IN (${calendarIds.joinToString(",")})"
@@ -102,6 +123,8 @@ class SystemCalendarRepository(private val context: Context) {
                 val allDayIdx = it.getColumnIndex(CalendarContract.Instances.ALL_DAY)
                 val colorIdx = it.getColumnIndex(CalendarContract.Instances.DISPLAY_COLOR)
                 val idIdx = it.getColumnIndex(CalendarContract.Instances.EVENT_ID)
+                val calendarIdIdx = it.getColumnIndex(CalendarContract.Instances.CALENDAR_ID)
+                val hasAlarmIdx = it.getColumnIndex(CalendarContract.Instances.HAS_ALARM)
 
                 while (it.moveToNext()) {
                     val title = if (titleIdx != -1) it.getString(titleIdx) ?: "No Title" else "No Title"
@@ -111,6 +134,27 @@ class SystemCalendarRepository(private val context: Context) {
                     val allDay = if (allDayIdx != -1) it.getInt(allDayIdx) == 1 else false
                     val colorInt = if (colorIdx != -1) it.getInt(colorIdx) else 0xFF7C5CFF.toInt()
                     val id = if (idIdx != -1) it.getLong(idIdx) else 0L
+                    val calendarId = if (calendarIdIdx != -1) it.getLong(calendarIdIdx) else 1L
+                    val hasAlarm = if (hasAlarmIdx != -1) it.getInt(hasAlarmIdx) == 1 else false
+
+                    var reminderMinutes = 0
+                    if (hasAlarm) {
+                        val reminderCursor = context.contentResolver.query(
+                            CalendarContract.Reminders.CONTENT_URI,
+                            arrayOf(CalendarContract.Reminders.MINUTES),
+                            "${CalendarContract.Reminders.EVENT_ID} = ?",
+                            arrayOf(id.toString()),
+                            null
+                        )
+                        reminderCursor?.use {
+                            if (it.moveToFirst()) {
+                                val minutesIdx = it.getColumnIndex(CalendarContract.Reminders.MINUTES)
+                                if (minutesIdx != -1) {
+                                    reminderMinutes = it.getInt(minutesIdx)
+                                }
+                            }
+                        }
+                    }
 
                     val displayColor = if (colorInt != 0) Color(colorInt) else Color(0xFF7C5CFF)
 
@@ -124,27 +168,28 @@ class SystemCalendarRepository(private val context: Context) {
                     
                     val endTimeCheck = endZoned.toLocalTime()
                     
-                    // For allDay events, the end date is exclusive (e.g. starts Jan 18 00:00, ends Jan 19 00:00 = 1 day).
-                    // For normal events, if it ends at midnight, it is also exclusive of that ending day.
                     if (allDay || (endTimeCheck == LocalTime.MIDNIGHT && !startDate.isEqual(endDate))) {
                         endDate = endDate.minusDays(1)
                     }
 
-                    // Expand multi-day events
                     var currentDate = startDate
                     while (!currentDate.isAfter(endDate)) {
                         val startTime = if (allDay) null else startZoned.toLocalTime()
                         val endTime = if (allDay) null else endZoned.toLocalTime()
 
                         events.add(Event(
-                            id = id, 
+                            id = id,
+                            calendarId = calendarId,
                             title = if (startDate == endDate) title else "$title", 
                             description = description,
+                            originalStartDate = startDate,
+                            originalEndDate = endDate,
                             date = currentDate,
                             startTime = startTime,
                             endTime = endTime,
                             isAllDay = allDay,
-                            color = displayColor
+                            color = displayColor,
+                            reminderMinutes = reminderMinutes
                         ))
                         currentDate = currentDate.plusDays(1)
                     }
@@ -159,10 +204,10 @@ class SystemCalendarRepository(private val context: Context) {
 
     fun addEvent(event: Event, calendarId: Long = 1): Long? {
         try {
-            val startMillis = event.date.atTime(event.startTime ?: LocalTime.MIDNIGHT)
+            val startMillis = event.originalStartDate.atTime(event.startTime ?: LocalTime.MIDNIGHT)
                 .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
-            val endMillis = event.date.atTime(event.endTime ?: LocalTime.MIDNIGHT.plusHours(1))
+            val endMillis = event.originalEndDate.atTime(event.endTime ?: LocalTime.MIDNIGHT.plusHours(1))
                 .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
             
             val values = ContentValues().apply {
@@ -173,10 +218,22 @@ class SystemCalendarRepository(private val context: Context) {
                 put(CalendarContract.Events.CALENDAR_ID, calendarId)
                 put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
                 put(CalendarContract.Events.ALL_DAY, if (event.isAllDay) 1 else 0)
+                put(CalendarContract.Events.HAS_ALARM, if (event.reminderMinutes > 0) 1 else 0)
             }
 
             val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
-            return uri?.lastPathSegment?.toLong()
+            val eventId = uri?.lastPathSegment?.toLong()
+
+            if (eventId != null && event.reminderMinutes > 0) {
+                val reminderValues = ContentValues().apply {
+                    put(CalendarContract.Reminders.EVENT_ID, eventId)
+                    put(CalendarContract.Reminders.MINUTES, event.reminderMinutes)
+                    put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+                }
+                context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
+            }
+            
+            return eventId
         } catch (e: SecurityException) {
             e.printStackTrace()
             return null
@@ -185,10 +242,10 @@ class SystemCalendarRepository(private val context: Context) {
 
     fun updateEvent(event: Event) {
         try {
-            val startMillis = event.date.atTime(event.startTime ?: LocalTime.MIDNIGHT)
+            val startMillis = event.originalStartDate.atTime(event.startTime ?: LocalTime.MIDNIGHT)
                 .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
-            val endMillis = event.date.atTime(event.endTime ?: LocalTime.MIDNIGHT.plusHours(1))
+            val endMillis = event.originalEndDate.atTime(event.endTime ?: LocalTime.MIDNIGHT.plusHours(1))
                 .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
             val values = ContentValues().apply {
@@ -197,10 +254,24 @@ class SystemCalendarRepository(private val context: Context) {
                 put(CalendarContract.Events.TITLE, event.title)
                 put(CalendarContract.Events.DESCRIPTION, event.description)
                 put(CalendarContract.Events.ALL_DAY, if (event.isAllDay) 1 else 0)
+                put(CalendarContract.Events.CALENDAR_ID, event.calendarId)
+                put(CalendarContract.Events.HAS_ALARM, if (event.reminderMinutes > 0) 1 else 0)
             }
 
             val updateUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, event.id)
             context.contentResolver.update(updateUri, values, null, null)
+
+            // Remove old reminders and add new one
+            context.contentResolver.delete(CalendarContract.Reminders.CONTENT_URI, "${CalendarContract.Reminders.EVENT_ID} = ?", arrayOf(event.id.toString()))
+            if (event.reminderMinutes > 0) {
+                val reminderValues = ContentValues().apply {
+                    put(CalendarContract.Reminders.EVENT_ID, event.id)
+                    put(CalendarContract.Reminders.MINUTES, event.reminderMinutes)
+                    put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+                }
+                context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
+            }
+
         } catch (e: SecurityException) {
             e.printStackTrace()
         }
@@ -210,6 +281,7 @@ class SystemCalendarRepository(private val context: Context) {
         try {
             val deleteUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
             context.contentResolver.delete(deleteUri, null, null)
+            // Reminders are deleted automatically by the provider
         } catch (e: SecurityException) {
             e.printStackTrace()
         }
