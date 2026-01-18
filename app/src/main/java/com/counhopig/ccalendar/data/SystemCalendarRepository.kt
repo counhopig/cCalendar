@@ -6,7 +6,10 @@ import android.provider.CalendarContract
 import androidx.compose.ui.graphics.Color
 import com.counhopig.ccalendar.ui.model.Event
 import java.time.Instant
-import java.time.ZoneId
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.temporal.ChronoUnit
+import java.time.ZoneId 
 
 class SystemCalendarRepository(private val context: Context) {
 
@@ -59,31 +62,40 @@ class SystemCalendarRepository(private val context: Context) {
                     val colorInt = if (colorIdx != -1) it.getInt(colorIdx) else 0xFF7C5CFF.toInt()
                     val id = if (idIdx != -1) it.getLong(idIdx) else 0L
 
-                    // Handle color. If 0 (black/transparent), use default. 
-                    // Android calendar colors are typically valid ARGB.
-                    // If opaque alpha is missing, we might want to ensure it.
-                    // But usually DISPLAY_COLOR is a full int.
                     val displayColor = if (colorInt != 0) Color(colorInt) else Color(0xFF7C5CFF)
 
-                    val startInstant = Instant.ofEpochMilli(begin)
-                    val endInstant = Instant.ofEpochMilli(end)
                     val zoneId = ZoneId.systemDefault()
+                    val startZoned = Instant.ofEpochMilli(begin).atZone(zoneId)
+                    val endZoned = Instant.ofEpochMilli(end).atZone(zoneId)
                     
-                    val startDate = startInstant.atZone(zoneId).toLocalDate()
+                    val startDate = startZoned.toLocalDate()
+                    var endDate = endZoned.toLocalDate()
                     
-                    val startTime = if (allDay) null else startInstant.atZone(zoneId).toLocalTime()
-                    val endTime = if (allDay) null else endInstant.atZone(zoneId).toLocalTime()
+                    // If event ends at midnight (00:00), it implies the end is exclusive of that day.
+                    // So we subtract one day from the loop range.
+                    val endTimeCheck = endZoned.toLocalTime()
+                    if (endTimeCheck == LocalTime.MIDNIGHT && !startDate.isEqual(endDate)) {
+                        endDate = endDate.minusDays(1)
+                    }
 
-                    events.add(Event(
-                        id = id, 
-                        title = title,
-                        description = description,
-                        date = startDate,
-                        startTime = startTime,
-                        endTime = endTime,
-                        isAllDay = allDay,
-                        color = displayColor
-                    ))
+                    // Expand multi-day events
+                    var currentDate = startDate
+                    while (!currentDate.isAfter(endDate)) {
+                        val startTime = if (allDay) null else startZoned.toLocalTime()
+                        val endTime = if (allDay) null else endZoned.toLocalTime()
+
+                        events.add(Event(
+                            id = id, 
+                            title = if (startDate == endDate) title else "$title", 
+                            description = description,
+                            date = currentDate,
+                            startTime = startTime,
+                            endTime = endTime,
+                            isAllDay = allDay,
+                            color = displayColor
+                        ))
+                        currentDate = currentDate.plusDays(1)
+                    }
                 }
             }
         } catch (e: Exception) {
