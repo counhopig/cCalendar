@@ -81,9 +81,11 @@ class CalendarRemoteViewsFactory(
         val first = month.atDay(1)
         val daysInMonth = month.lengthOfMonth()
         
-        // Monday=1 ... Sunday=7
-        // Offset = dayOfWeek - 1. (Mon->0, Tue->1...)
-        val offset = first.dayOfWeek.value - 1
+        // Sunday=7, Monday=1 ... Saturday=6
+        // Grid starts at Sunday.
+        // If first is Sunday(7), offset = 0.
+        // If first is Monday(1), offset = 1.
+        val offset = first.dayOfWeek.value % 7
 
         for (i in 0 until offset) {
             days.add("")
@@ -92,12 +94,14 @@ class CalendarRemoteViewsFactory(
             days.add(i.toString())
         }
         
-        // Fill remaining cells to keep grid stable if needed
-        val remaining = 42 - days.size // 6 rows * 7
-        if (remaining > 0) {
-             for (i in 0 until remaining) {
-                 days.add("") // Or next month's days
-             }
+        // Only fill up to the end of the current week row, do not force 6 rows
+        val totalCells = days.size
+        val currentRowRemainder = totalCells % 7
+        if (currentRowRemainder != 0) {
+            val needed = 7 - currentRowRemainder
+            for (i in 0 until needed) {
+                days.add("") 
+            }
         }
     }
 
@@ -145,8 +149,7 @@ class CalendarRemoteViewsFactory(
                      views.setViewVisibility(containerId, View.VISIBLE)
                      views.setTextViewText(textId, event.title)
                      
-                     // Check neighbors for connection
-                     // We need to check if there is an event with SAME ID on prev/next day
+                     // Check neighbors for connection (visual shape)
                      val prevDay = cellDate.minusDays(1)
                      val nextDay = cellDate.plusDays(1)
                      
@@ -155,6 +158,10 @@ class CalendarRemoteViewsFactory(
                      
                      val continuesLeft = prevEvents.any { it.id == event.id }
                      val continuesRight = nextEvents.any { it.id == event.id }
+                     
+                     // Text logic: Show title only on start or if disconnected from left
+                     val showText = !continuesLeft
+                     views.setTextViewText(textId, if (showText) event.title else "")
                      
                      val bgRes = when {
                          continuesLeft && continuesRight -> R.drawable.shape_event_item_middle
@@ -184,6 +191,8 @@ class CalendarRemoteViewsFactory(
 
                  if (allDailyEvents.size > 2) {
                      views.setViewVisibility(R.id.cell_more_text, View.VISIBLE)
+                     val moreCount = allDailyEvents.size - 2
+                     views.setTextViewText(R.id.cell_more_text, "+$moreCount")
                  }
              }
 

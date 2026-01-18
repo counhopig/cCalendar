@@ -64,17 +64,19 @@ class SystemCalendarRepository(private val context: Context) {
 
                     val displayColor = if (colorInt != 0) Color(colorInt) else Color(0xFF7C5CFF)
 
-                    val zoneId = ZoneId.systemDefault()
+                    // All-day events are stored in UTC, normal events in local time (or respective timezone)
+                    val zoneId = if (allDay) ZoneId.of("UTC") else ZoneId.systemDefault()
                     val startZoned = Instant.ofEpochMilli(begin).atZone(zoneId)
                     val endZoned = Instant.ofEpochMilli(end).atZone(zoneId)
                     
                     val startDate = startZoned.toLocalDate()
                     var endDate = endZoned.toLocalDate()
                     
-                    // If event ends at midnight (00:00), it implies the end is exclusive of that day.
-                    // So we subtract one day from the loop range.
                     val endTimeCheck = endZoned.toLocalTime()
-                    if (endTimeCheck == LocalTime.MIDNIGHT && !startDate.isEqual(endDate)) {
+                    
+                    // For allDay events, the end date is exclusive (e.g. starts Jan 18 00:00, ends Jan 19 00:00 = 1 day).
+                    // For normal events, if it ends at midnight, it is also exclusive of that ending day.
+                    if (allDay || (endTimeCheck == LocalTime.MIDNIGHT && !startDate.isEqual(endDate))) {
                         endDate = endDate.minusDays(1)
                     }
 

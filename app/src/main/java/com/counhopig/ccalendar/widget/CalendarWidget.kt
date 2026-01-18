@@ -36,7 +36,7 @@ internal fun updateAppWidget(
     val dateInfo = LocalDate.now()
 
     // Set header
-    val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
+    val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.CHINA)
     val formattedDate = dateInfo.format(formatter)
     views.setTextViewText(R.id.widget_header, formattedDate)
 
