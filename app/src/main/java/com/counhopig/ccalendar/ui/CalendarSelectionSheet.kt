@@ -18,12 +18,7 @@ import androidx.compose.ui.unit.sp
 import com.counhopig.ccalendar.ui.model.Calendar
 import com.counhopig.ccalendar.ui.viewmodel.EventViewModel
 
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.runtime.*
 
 @OptIn(ExperimentalMaterial3Api::class)

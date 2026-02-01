@@ -1,0 +1,9 @@
+# Example signing.properties (DO NOT COMMIT your real secrets)
+# Copy this file to `signing.properties` at the repo root and fill in real values, or set environment variables:
+# SIGNING_STORE_PASSWORD, SIGNING_KEY_ALIAS, SIGNING_KEY_PASSWORD
+
+# path to your keystore file relative to project root (e.g. app/my-release-key.jks)
+storeFile=app/my-release-key.jks
+storePassword=your_store_password_here
+keyAlias=your_key_alias_here
+keyPassword=your_key_password_here

@@ -2,6 +2,8 @@ package com.counhopig.ccalendar.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -71,12 +73,14 @@ import kotlin.math.absoluteValue
 @Composable
 fun MonthScreen(
     modifier: Modifier = Modifier,
-    viewModel: EventViewModel = viewModel()
+    viewModel: EventViewModel = viewModel(),
+    initialSelectedDate: LocalDate? = null
 ) {
     val context = LocalContext.current
     val locale = remember { Locale.getDefault() }
     val today = remember { LocalDate.now() }
-    var selectedDate by remember { mutableStateOf(today) }
+    var selectedDate by remember { mutableStateOf(initialSelectedDate ?: today) }
+    val scope = rememberCoroutineScope()
 
     val initialPage = Int.MAX_VALUE / 2
     val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { Int.MAX_VALUE })
@@ -179,11 +183,20 @@ fun MonthScreen(
                     .fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                val onTodayClick = {
+                    selectedDate = today
+                    scope.launch {
+                        pagerState.scrollToPage(initialPage)
+                    }
+                    Unit
+                }
+                
                 Header(
                     title = currentMonth.month.getDisplayName(TextStyle.FULL, locale),
                     subtitle = currentMonth.year.toString(),
                     onSettingsClick = { showCalendarSheet = true },
-                    onWidgetSettingsClick = { showWidgetSettingsSheet = true }
+                    onWidgetSettingsClick = { showWidgetSettingsSheet = true },
+                    onTodayClick = onTodayClick
                 )
 
                 HorizontalPager(
@@ -246,7 +259,8 @@ private fun Header(
     title: String,
     subtitle: String,
     onSettingsClick: () -> Unit,
-    onWidgetSettingsClick: () -> Unit
+    onWidgetSettingsClick: () -> Unit,
+    onTodayClick: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -285,6 +299,13 @@ private fun Header(
                 onDismissRequest = { showMenu = false },
                 modifier = Modifier.background(Color(0xFF151F3A))
             ) {
+                DropdownMenuItem(
+                    text = { Text("返回今天", color = Color(0xFFEAF0FF)) },
+                    onClick = {
+                        onTodayClick()
+                        showMenu = false
+                    }
+                )
                 DropdownMenuItem(
                     text = { Text("日历管理", color = Color(0xFFEAF0FF)) },
                     onClick = {
@@ -615,6 +636,6 @@ private fun EventItem(event: com.counhopig.ccalendar.ui.model.Event, onClick: ()
 @Composable
 private fun MonthScreenPreview() {
     CCalendarTheme {
-        MonthScreen(viewModel = EventViewModel())
+        MonthScreen(viewModel = EventViewModel(), initialSelectedDate = null)
     }
 }

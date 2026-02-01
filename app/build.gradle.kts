@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -19,12 +21,33 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    val signingPropsFile = rootProject.file("signing.properties")
+    val signingProps = mutableMapOf<String, String>()
+    if (signingPropsFile.exists()) {
+        signingPropsFile.readLines().forEach { line ->
+            val trimmed = line.trim()
+            if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
+                val idx = trimmed.indexOf('=')
+                if (idx > 0) {
+                    val key = trimmed.substring(0, idx).trim()
+                    val value = trimmed.substring(idx + 1).trim()
+                    signingProps[key] = value
+                }
+            }
+        }
+    }
+
     signingConfigs {
         create("release") {
-            storeFile = file("my-release-key.jks")
-            storePassword = "counhopig"
-            keyAlias = "my-key-alias"
-            keyPassword = "counhopig"
+            val storeFilePath = signingProps["storeFile"] ?: "my-release-key.jks"
+            val storePassword = signingProps["storePassword"] ?: System.getenv("SIGNING_STORE_PASSWORD") ?: ""
+            val keyAlias = signingProps["keyAlias"] ?: System.getenv("SIGNING_KEY_ALIAS") ?: ""
+            val keyPassword = signingProps["keyPassword"] ?: System.getenv("SIGNING_KEY_PASSWORD") ?: ""
+
+            storeFile = if (file(storeFilePath).exists()) file(storeFilePath) else file("my-release-key.jks")
+            this.storePassword = storePassword
+            this.keyAlias = keyAlias
+            this.keyPassword = keyPassword
         }
     }
 

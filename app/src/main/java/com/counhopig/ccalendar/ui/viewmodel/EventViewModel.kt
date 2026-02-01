@@ -153,9 +153,9 @@ class EventViewModel : ViewModel() {
                                     startDate = dateObj.toLocalDate()
                                     startTime = dateObj.toLocalTime()
                                 } else if (dateObj is java.util.Date) {
-                                     val zdt = dateObj.toInstant().atZone(ZoneId.systemDefault())
-                                     startDate = zdt.toLocalDate()
-                                     startTime = zdt.toLocalTime()
+                                        val zdt = dateObj.toInstant().atZone(ZoneId.systemDefault())
+                                        startDate = zdt.toLocalDate()
+                                        startTime = zdt.toLocalTime()
                                 } else {
                                     startDate = LocalDate.now()
                                     startTime = null
