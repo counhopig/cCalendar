@@ -3,6 +3,7 @@ package com.counhopig.ccalendar.widget
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -15,11 +16,18 @@ import com.counhopig.ccalendar.MainActivity
 import com.counhopig.ccalendar.R
 import com.counhopig.ccalendar.data.WidgetSettingsRepository
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
 
 class CalendarWidget : AppWidgetProvider() {
+    companion object {
+        const val ACTION_PREV_MONTH = "com.counhopig.ccalendar.widget.action.PREV_MONTH"
+        const val ACTION_NEXT_MONTH = "com.counhopig.ccalendar.widget.action.NEXT_MONTH"
+        const val EXTRA_WIDGET_ID = "widget_id"
+        const val ACTION_PROVIDER_CHANGED = "android.intent.action.PROVIDER_CHANGED"
+    }
 
     override fun onUpdate(
         context: Context,
@@ -40,6 +48,39 @@ class CalendarWidget : AppWidgetProvider() {
         updateAppWidget(context, appWidgetManager, appWidgetId)
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
     }
+
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        
+        when (intent.action) {
+            ACTION_PREV_MONTH, ACTION_NEXT_MONTH -> {
+                val appWidgetId = intent.getIntExtra(EXTRA_WIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+                if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                    val repository = WidgetSettingsRepository(context)
+                    val currentOffset = repository.getMonthOffset(appWidgetId)
+                    val newOffset = when (intent.action) {
+                        ACTION_PREV_MONTH -> currentOffset - 1
+                        ACTION_NEXT_MONTH -> currentOffset + 1
+                        else -> currentOffset
+                    }
+                    repository.setMonthOffset(appWidgetId, newOffset)
+                    
+                    // Update the widget
+                    val appWidgetManager = AppWidgetManager.getInstance(context)
+                    updateAppWidget(context, appWidgetManager, appWidgetId)
+                }
+            }
+            ACTION_PROVIDER_CHANGED -> {
+                // Refresh all widgets when system calendar changes
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+                val componentName = ComponentName(context, CalendarWidget::class.java)
+                val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+                for (appWidgetId in appWidgetIds) {
+                    updateAppWidget(context, appWidgetManager, appWidgetId)
+                }
+            }
+        }
+    }
 }
 
 internal fun updateAppWidget(
@@ -51,6 +92,10 @@ internal fun updateAppWidget(
     val settings = repository.getSettings()
 
     val views = RemoteViews(context.packageName, R.layout.widget_calendar)
+    
+    // Get month offset for this widget
+    val monthOffset = repository.getMonthOffset(appWidgetId)
+    val targetMonth = YearMonth.now().plusMonths(monthOffset.toLong())
     
     // --- 1. Apply Background ---
     // Generate bitmap for background with corners and transparency
@@ -118,13 +163,13 @@ internal fun updateAppWidget(
     views.setTextColor(R.id.widget_header_thu, fontColor)
     views.setTextColor(R.id.widget_header_fri, fontColor)
     views.setTextColor(R.id.widget_header_sat, fontColor)
+    views.setTextColor(R.id.widget_prev_month, fontColor)
+    views.setTextColor(R.id.widget_next_month, fontColor)
 
 
-    val dateInfo = LocalDate.now()
-
-    // Set header
-    val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.CHINA)
-    val formattedDate = dateInfo.format(formatter)
+    // Set header with target month
+    val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
+    val formattedDate = targetMonth.format(formatter)
     views.setTextViewText(R.id.widget_header, formattedDate)
 
     // Click header to open app
@@ -136,6 +181,32 @@ internal fun updateAppWidget(
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
     views.setOnClickPendingIntent(R.id.widget_header, pendingIntent)
+
+    // Previous month button
+    val prevIntent = Intent(context, CalendarWidget::class.java).apply {
+        action = CalendarWidget.ACTION_PREV_MONTH
+        putExtra(CalendarWidget.EXTRA_WIDGET_ID, appWidgetId)
+    }
+    val prevPendingIntent = PendingIntent.getBroadcast(
+        context,
+        appWidgetId * 10 + 1,
+        prevIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    views.setOnClickPendingIntent(R.id.widget_prev_month, prevPendingIntent)
+
+    // Next month button
+    val nextIntent = Intent(context, CalendarWidget::class.java).apply {
+        action = CalendarWidget.ACTION_NEXT_MONTH
+        putExtra(CalendarWidget.EXTRA_WIDGET_ID, appWidgetId)
+    }
+    val nextPendingIntent = PendingIntent.getBroadcast(
+        context,
+        appWidgetId * 10 + 2,
+        nextIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    views.setOnClickPendingIntent(R.id.widget_next_month, nextPendingIntent)
 
     // Template intent for the grid items
     val dayIntent = Intent(context, MainActivity::class.java)
@@ -151,6 +222,7 @@ internal fun updateAppWidget(
     val intent = Intent(context, CalendarWidgetService::class.java).apply {
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         putExtra("FONT_COLOR", fontColor) // Pass settings to service
+        putExtra("MONTH_OFFSET", monthOffset) // Pass month offset to service
         data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
     }
     views.setRemoteAdapter(R.id.widget_grid_view, intent)

@@ -30,6 +30,7 @@ class CalendarRemoteViewsFactory(
 ) : RemoteViewsService.RemoteViewsFactory {
 
     private val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+    private val monthOffset = intent.getIntExtra("MONTH_OFFSET", 0)
     private val days = mutableListOf<String>()
     
     // Store daily events in a map
@@ -57,22 +58,19 @@ class CalendarRemoteViewsFactory(
             
             val calendars = repository.getCalendars()
             val calendarIds = calendars.map { it.id }.toSet()
-            val yearMonth = YearMonth.now()
+            val yearMonth = YearMonth.now().plusMonths(monthOffset.toLong())
 
             val allEvents = repository.getSystemEvents(calendarIds, yearMonth)
             
-            // Sort events to keep consistent slots
-            // Sorting strategy: AllDay first, then longer duration first, then start time, then title, then ID.
-            // But we need duration. Event doesn't have duration directly exposed in my Event class.
-            // Let's rely on StartTime. AllDay events have null startTime, treated as very start.
-            // But to connect bars, stability is most important. 
-            // If we sort by Title or ID, it's stable across days.
-            // Let's sort by Title for visual consistency of same-named events.
-            val sortedEvents = allEvents.sortedWith(compareBy(
-                { !it.isAllDay }, // All day first (true < false is false... wait. isAllDay=true => !isAllDay=false. false < true. So AllDay first)
-                { it.startTime ?: LocalTime.MIN },
-                { it.title }
-            ))
+            // Sort events to keep consistent slots, prioritizing multi-day events
+            // Build map of event ID to occurrence count
+            val eventIdToCount = allEvents.groupBy { it.id }.mapValues { it.value.size }
+            
+            val sortedEvents = allEvents.sortedWith(compareByDescending<Event> { eventIdToCount[it.id] ?: 0 }
+                .thenBy { !it.isAllDay } // All day first
+                .thenBy { it.startTime ?: LocalTime.MIN }
+                .thenBy { it.title }
+            )
 
             eventsMap.clear()
             sortedEvents.forEach { event ->
@@ -85,9 +83,8 @@ class CalendarRemoteViewsFactory(
     private fun loadDays() {
         days.clear()
         
-        // Always show current month
-        val dateInfo = LocalDate.now()
-        val month = YearMonth.from(dateInfo)
+        // Show month based on offset
+        val month = YearMonth.now().plusMonths(monthOffset.toLong())
         
         val first = month.atDay(1)
         val daysInMonth = month.lengthOfMonth()
@@ -136,10 +133,10 @@ class CalendarRemoteViewsFactory(
              val day = try { text.toInt() } catch(e: Exception) { -1 }
              if (day == -1) return views
 
-             // Get the displayed month/year
-             val displayedDate = LocalDate.now()
-             val cellDate = LocalDate.of(displayedDate.year, displayedDate.month, day)
-             val today = LocalDate.now()
+              // Get the displayed month/year based on offset
+              val targetMonth = YearMonth.now().plusMonths(monthOffset.toLong())
+              val cellDate = targetMonth.atDay(day)
+              val today = LocalDate.now()
              
              // Check if this cell represents "Today"
              if (today == cellDate) {

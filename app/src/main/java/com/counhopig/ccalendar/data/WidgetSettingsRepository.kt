@@ -38,4 +38,12 @@ class WidgetSettingsRepository(private val context: Context) {
         val color = Color(settings.backgroundColor)
         return color.copy(alpha = settings.backgroundTransparency).toArgb()
     }
+    
+    fun getMonthOffset(appWidgetId: Int): Int {
+        return prefs.getInt("month_offset_$appWidgetId", 0)
+    }
+    
+    fun setMonthOffset(appWidgetId: Int, offset: Int) {
+        prefs.edit().putInt("month_offset_$appWidgetId", offset).apply()
+    }
 }
