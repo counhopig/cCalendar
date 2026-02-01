@@ -1,5 +1,6 @@
 package com.counhopig.ccalendar.ui
 
+import android.annotation.SuppressLint
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.rememberCoroutineScope
@@ -632,6 +633,7 @@ private fun EventItem(event: com.counhopig.ccalendar.ui.model.Event, onClick: ()
 
 
 
+@SuppressLint("ViewModelConstructorInComposable")
 @Preview(showBackground = true)
 @Composable
 private fun MonthScreenPreview() {
