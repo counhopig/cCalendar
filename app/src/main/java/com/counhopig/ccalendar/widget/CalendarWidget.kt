@@ -225,8 +225,10 @@ internal fun updateAppWidget(
         putExtra("MONTH_OFFSET", monthOffset) // Pass month offset to service
         data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
     }
+    @Suppress("DEPRECATION")
     views.setRemoteAdapter(R.id.widget_grid_view, intent)
 
     appWidgetManager.updateAppWidget(appWidgetId, views)
+    @Suppress("DEPRECATION")
     appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.widget_grid_view)
 }
