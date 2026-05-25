@@ -19,6 +19,7 @@ out/
 .gradle/
 build/
 **/build/
+.kotlin/
 
 # Local configuration file (sdk.dir, ndk.dir, etc.)
 local.properties
