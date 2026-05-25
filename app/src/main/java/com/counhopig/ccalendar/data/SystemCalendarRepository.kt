@@ -300,6 +300,7 @@ class SystemCalendarRepository(val context: Context) {
             val values = ContentValues().apply {
                 put(CalendarContract.Events.DTSTART, startMillis)
                 put(CalendarContract.Events.DTEND, endMillis)
+                putNull(CalendarContract.Events.DURATION)
                 put(CalendarContract.Events.TITLE, event.title)
                 put(CalendarContract.Events.DESCRIPTION, event.description)
                 put(CalendarContract.Events.ALL_DAY, if (event.isAllDay) 1 else 0)
@@ -330,6 +331,8 @@ class SystemCalendarRepository(val context: Context) {
             }
 
         } catch (e: SecurityException) {
+            e.printStackTrace()
+        } catch (e: IllegalArgumentException) {
             e.printStackTrace()
         }
     }
