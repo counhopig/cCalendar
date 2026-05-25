@@ -6,8 +6,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 
 data class WidgetSettings(
-    @ColorInt val fontColor: Int = Color(0xFFEAF0FF).toArgb(),
-    @ColorInt val backgroundColor: Int = Color(0xFF0B1220).toArgb(),
+    @param:ColorInt val fontColor: Int = Color(0xFFEAF0FF).toArgb(),
+    @param:ColorInt val backgroundColor: Int = Color(0xFF0B1220).toArgb(),
     val backgroundTransparency: Float = 1.0f, // 0.0 to 1.0. Applied to backgroundColor alpha.
     val cornerRadius: Int = 16 // dp
 )

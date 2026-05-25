@@ -42,7 +42,9 @@ class SystemCalendarRepository(val context: Context) {
         val projection = arrayOf(
             CalendarContract.Calendars._ID,
             CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
-            CalendarContract.Calendars.CALENDAR_COLOR
+            CalendarContract.Calendars.CALENDAR_COLOR,
+            CalendarContract.Calendars.ACCOUNT_NAME,
+            CalendarContract.Calendars.ACCOUNT_TYPE
         )
 
         try {
@@ -58,11 +60,15 @@ class SystemCalendarRepository(val context: Context) {
                 val idIdx = it.getColumnIndex(CalendarContract.Calendars._ID)
                 val nameIdx = it.getColumnIndex(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME)
                 val colorIdx = it.getColumnIndex(CalendarContract.Calendars.CALENDAR_COLOR)
+                val accountNameIdx = it.getColumnIndex(CalendarContract.Calendars.ACCOUNT_NAME)
+                val accountTypeIdx = it.getColumnIndex(CalendarContract.Calendars.ACCOUNT_TYPE)
 
                 while (it.moveToNext()) {
                     val id = if (idIdx != -1) it.getLong(idIdx) else -1
                     val name = if (nameIdx != -1) it.getString(nameIdx) ?: "Unnamed" else "Unnamed"
                     val colorInt = if (colorIdx != -1) it.getInt(colorIdx) else 0
+                    val accountName = if (accountNameIdx != -1) it.getString(accountNameIdx).orEmpty() else ""
+                    val accountType = if (accountTypeIdx != -1) it.getString(accountTypeIdx).orEmpty() else ""
 
                     // Filter out problematic calendars that effectively don't work or are system artifacts
                     if (name == "calendar_displayname_xiaomi" || name == "calendar_displayname_birthday") {
@@ -70,7 +76,7 @@ class SystemCalendarRepository(val context: Context) {
                     }
                     
                     if (id != -1L) {
-                        calendars.add(Calendar(id, name, Color(colorInt)))
+                        calendars.add(Calendar(id, name, Color(colorInt), accountName, accountType))
                     }
                 }
             }

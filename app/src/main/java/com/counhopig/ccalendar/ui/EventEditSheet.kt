@@ -5,6 +5,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.counhopig.ccalendar.data.AppSettingsRepository
 import com.counhopig.ccalendar.ui.model.Event
 import com.counhopig.ccalendar.ui.viewmodel.EventViewModel
 import java.time.Instant
@@ -34,6 +38,13 @@ import androidx.compose.material.icons.automirrored.filled.Subject
 import java.time.format.DateTimeFormatter
 import java.time.LocalDateTime
 import java.time.Duration
+
+private val NeoBackground = Color(0xFFE9EEF6)
+private val NeoSurface = Color(0xFFE9EEF6)
+private val NeoText = Color(0xFF243044)
+private val NeoTextMuted = Color(0xFF738099)
+private val NeoAccent = Color(0xFF7C5CFF)
+private val NeoDivider = Color(0xFFD0D8E6)
 
 // 提醒选项数据类
 data class ReminderOption(
@@ -87,8 +98,13 @@ fun EventEditSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color(0xFF1A2234),
-        dragHandle = null
+        containerColor = NeoBackground,
+        dragHandle = {
+            BottomSheetDefaults.DragHandle(
+                modifier = Modifier.statusBarsPadding(),
+                color = NeoTextMuted
+            )
+        }
     ) {
         EventEditContent(
             event = event,
@@ -134,20 +150,22 @@ fun EventEditContent(
     var showReminderDatePicker by remember { mutableStateOf(false) }
     var showReminderTimePicker by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+    val appSettingsRepository = remember { AppSettingsRepository(context) }
+
     // Reminder state
-    var selectedReminderMinutes by remember { mutableStateOf(event?.reminderMinutes ?: 0) }
+    var selectedReminderMinutes by remember {
+        mutableStateOf(event?.reminderMinutes ?: appSettingsRepository.getSettings().defaultReminderMinutes)
+    }
     var showCustomReminderDialog by remember { mutableStateOf(false) }
     var customReminderValue by remember { mutableStateOf("") }
     var customReminderDate by remember { mutableStateOf(LocalDate.now()) }
     var customReminderTime by remember { mutableStateOf(LocalTime.now()) }
-
-    val context = LocalContext.current
     val reminderOptions = defaultReminderOptions
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding()
             .padding(horizontal = 16.dp)
             .imePadding() // Handles keyboard
     ) {
@@ -159,14 +177,12 @@ fun EventEditContent(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = "Cancel", tint = Color.White)
-            }
+            Spacer(Modifier.size(48.dp))
             Text(
                 text = if (event == null) "添加日程" else "编辑日程",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White
+                color = NeoText
             )
             TextButton(
                 onClick = {
@@ -202,28 +218,29 @@ fun EventEditContent(
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                placeholder = { Text("输入标题", color = Color.Gray, fontSize = 24.sp) },
+                placeholder = { Text("输入标题", color = NeoTextMuted, fontSize = 24.sp) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color.Transparent,
                     unfocusedBorderColor = Color.Transparent,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedTextColor = NeoText,
+                    unfocusedTextColor = NeoText,
+                    cursorColor = NeoAccent,
                     focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent
                 ),
-                textStyle = MaterialTheme.typography.headlineMedium.copy(color = Color.White)
+                textStyle = MaterialTheme.typography.headlineMedium.copy(color = NeoText)
             )
 
-            HorizontalDivider(color = Color(0xFF2C3549))
+            HorizontalDivider(color = NeoDivider)
 
             // --- Calendar Selector ---
             Box {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
                         .clickable { showCalendarMenu = true },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -231,13 +248,13 @@ fun EventEditContent(
                     Icon(
                         imageVector = Icons.Default.CalendarToday,
                         contentDescription = null,
-                        tint = Color(0xFFB7C4E6),
+                        tint = NeoTextMuted,
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(Modifier.width(16.dp))
                     Text(
                         text = currentCalendar?.name ?: "Default",
-                        color = Color.White,
+                        color = NeoText,
                         fontSize = 16.sp
                     )
                 }
@@ -257,20 +274,21 @@ fun EventEditContent(
                 }
             }
 
-            HorizontalDivider(color = Color(0xFF2C3549))
+            HorizontalDivider(color = NeoDivider)
 
             // --- Reminder Selector ---
             Box {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
                         .clickable { showReminderMenu = true },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Default.Notifications,
                         contentDescription = null,
-                        tint = Color(0xFFB7C4E6),
+                        tint = NeoTextMuted,
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(Modifier.width(16.dp))
@@ -293,7 +311,7 @@ fun EventEditContent(
 
                     Text(
                         text = displayText,
-                        color = Color.White,
+                        color = NeoText,
                         fontSize = 16.sp
                     )
                 }
@@ -307,7 +325,7 @@ fun EventEditContent(
                             text = {
                                 Text(
                                     text = option.displayName,
-                                    color = if (option.isCustom) MaterialTheme.colorScheme.primary else Color.Unspecified
+                                    color = if (option.isCustom) NeoAccent else NeoText
                                 )
                             },
                             onClick = {
@@ -332,7 +350,7 @@ fun EventEditContent(
                 }
             }
 
-            HorizontalDivider(color = Color(0xFF2C3549))
+            HorizontalDivider(color = NeoDivider)
 
             // --- Time Section ---
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -344,13 +362,13 @@ fun EventEditContent(
                     Icon(
                         imageVector = Icons.Default.AccessTime,
                         contentDescription = null,
-                        tint = Color(0xFFB7C4E6),
+                        tint = NeoTextMuted,
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(Modifier.width(16.dp))
                     Text(
                         text = "全天",
-                        color = Color.White,
+                        color = NeoText,
                         fontSize = 16.sp,
                         modifier = Modifier.weight(1f)
                     )
@@ -370,16 +388,22 @@ fun EventEditContent(
                 ) {
                     Text(
                         text = startDate.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日")),
-                        color = Color.White,
+                        color = NeoText,
                         fontSize = 16.sp,
-                        modifier = Modifier.clickable { showStartDatePicker = true }
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { showStartDatePicker = true }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                     if (!isAllDay) {
                         Text(
                             text = startTime.format(DateTimeFormatter.ofPattern("HH:mm")),
-                            color = Color.White,
+                            color = NeoText,
                             fontSize = 16.sp,
-                            modifier = Modifier.clickable { showStartTimePicker = true }
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { showStartTimePicker = true }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -392,29 +416,35 @@ fun EventEditContent(
                 ) {
                     Text(
                         text = endDate.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日")),
-                        color = Color.White,
+                        color = NeoText,
                         fontSize = 16.sp,
-                        modifier = Modifier.clickable { showEndDatePicker = true }
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { showEndDatePicker = true }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                     if (!isAllDay) {
                         Text(
                             text = endTime.format(DateTimeFormatter.ofPattern("HH:mm")),
-                            color = Color.White,
+                            color = NeoText,
                             fontSize = 16.sp,
-                            modifier = Modifier.clickable { showEndTimePicker = true }
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { showEndTimePicker = true }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
                 }
             }
 
-            HorizontalDivider(color = Color(0xFF2C3549))
+            HorizontalDivider(color = NeoDivider)
 
             // --- Description ---
             Row(modifier = Modifier.fillMaxWidth()) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Subject,
                     contentDescription = null,
-                    tint = Color(0xFFB7C4E6),
+                    tint = NeoTextMuted,
                     modifier = Modifier
                         .size(24.dp)
                         .padding(top = 12.dp)
@@ -423,14 +453,14 @@ fun EventEditContent(
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    placeholder = { Text("添加说明", color = Color.Gray) },
+                    placeholder = { Text("添加说明", color = NeoTextMuted) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color.Transparent,
                         unfocusedBorderColor = Color.Transparent,
-                        focusedTextColor = Color(0xFFEAF0FF),
-                        unfocusedTextColor = Color(0xFFB7C4E6),
+                        focusedTextColor = NeoText,
+                        unfocusedTextColor = NeoTextMuted,
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent
                     )
@@ -442,9 +472,12 @@ fun EventEditContent(
                 Spacer(Modifier.height(20.dp))
                 Button(
                     onClick = { onDelete(event.id); onDismiss() },
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C3549)),
-                    shape = RoundedCornerShape(12.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = NeoSurface),
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.72f))
                 ) {
                     Icon(Icons.Outlined.Delete, contentDescription = null, tint = Color.Red)
                     Spacer(Modifier.width(8.dp))
@@ -463,7 +496,7 @@ fun EventEditContent(
             title = {
                 Text(
                     text = "自定义提醒时间",
-                    color = Color.White,
+                    color = NeoText,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -472,7 +505,7 @@ fun EventEditContent(
                 Column {
                     Text(
                         text = "选择具体的提醒时间",
-                        color = Color(0xFFB7C4E6),
+                        color = NeoTextMuted,
                         fontSize = 14.sp
                     )
                     Spacer(Modifier.height(16.dp))
@@ -484,17 +517,19 @@ fun EventEditContent(
                     ) {
                         Text(
                             text = customReminderDate.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日")),
-                            color = Color.White,
+                            color = NeoText,
                             fontSize = 16.sp,
                             modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
                                 .clickable { showReminderDatePicker = true }
                                 .padding(8.dp)
                         )
                         Text(
                             text = customReminderTime.format(DateTimeFormatter.ofPattern("HH:mm")),
-                            color = Color.White,
+                            color = NeoText,
                             fontSize = 16.sp,
                             modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
                                 .clickable { showReminderTimePicker = true }
                                 .padding(8.dp)
                         )
@@ -520,15 +555,15 @@ fun EventEditContent(
                         }
                     }
                 ) {
-                    Text("确定", color = MaterialTheme.colorScheme.primary)
+                    Text("确定", color = NeoAccent)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showCustomReminderDialog = false }) {
-                    Text("取消", color = Color(0xFFB7C4E6))
+                    Text("取消", color = NeoTextMuted)
                 }
             },
-            containerColor = Color(0xFF1A2234),
+            containerColor = NeoSurface,
             shape = RoundedCornerShape(12.dp)
         )
     }
@@ -557,19 +592,14 @@ fun EventEditContent(
     }
 
     if (showReminderTimePicker) {
-        val timePickerState = rememberTimePickerState(
-            initialHour = customReminderTime.hour,
-            initialMinute = customReminderTime.minute
-        )
-        TimePickerDialog(
+        WheelTimePickerDialog(
+            initialTime = customReminderTime,
             onDismissRequest = { showReminderTimePicker = false },
-            onConfirm = {
-                customReminderTime = LocalTime.of(timePickerState.hour, timePickerState.minute)
+            onConfirm = { selectedTime ->
+                customReminderTime = selectedTime
                 showReminderTimePicker = false
             }
-        ) {
-            TimePicker(state = timePickerState)
-        }
+        )
     }
 
     // --- Date & Time Pickers ---
@@ -626,57 +656,163 @@ fun EventEditContent(
     }
 
     if (showStartTimePicker) {
-        val timePickerState = rememberTimePickerState(
-            initialHour = startTime.hour,
-            initialMinute = startTime.minute
-        )
-        TimePickerDialog(
+        WheelTimePickerDialog(
+            initialTime = startTime,
             onDismissRequest = { showStartTimePicker = false },
-            onConfirm = {
-                startTime = LocalTime.of(timePickerState.hour, timePickerState.minute)
+            onConfirm = { selectedTime ->
+                startTime = selectedTime
                 showStartTimePicker = false
                 if (startDate == endDate && startTime.isAfter(endTime)) {
                     endTime = startTime.plusHours(1)
                 }
             }
-        ) {
-            TimePicker(state = timePickerState)
-        }
+        )
     }
 
     if (showEndTimePicker) {
-        val timePickerState = rememberTimePickerState(
-            initialHour = endTime.hour,
-            initialMinute = endTime.minute
-        )
-        TimePickerDialog(
+        WheelTimePickerDialog(
+            initialTime = endTime,
             onDismissRequest = { showEndTimePicker = false },
-            onConfirm = {
-                endTime = LocalTime.of(timePickerState.hour, timePickerState.minute)
+            onConfirm = { selectedTime ->
+                endTime = selectedTime
                 showEndTimePicker = false
             }
-        ) {
-            TimePicker(state = timePickerState)
-        }
+        )
     }
 }
 
 @Composable
-fun TimePickerDialog(
+fun WheelTimePickerDialog(
+    initialTime: LocalTime,
     onDismissRequest: () -> Unit,
-    onConfirm: () -> Unit,
-    content: @Composable () -> Unit
+    onConfirm: (LocalTime) -> Unit
 ) {
+    var selectedHour by remember(initialTime) { mutableStateOf(initialTime.hour) }
+    var selectedMinute by remember(initialTime) { mutableStateOf(initialTime.minute) }
+
     AlertDialog(
         onDismissRequest = onDismissRequest,
+        title = {
+            Text(
+                text = "选择时间",
+                color = NeoText,
+                fontWeight = FontWeight.SemiBold
+            )
+        },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text("OK") }
+            TextButton(onClick = { onConfirm(LocalTime.of(selectedHour, selectedMinute)) }) {
+                Text("确定", color = NeoAccent)
+            }
         },
         dismissButton = {
-            TextButton(onClick = onDismissRequest) { Text("Cancel") }
+            TextButton(onClick = onDismissRequest) {
+                Text("取消", color = NeoTextMuted)
+            }
         },
-        text = { content() }
+        text = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                WheelNumberPicker(
+                    value = selectedHour,
+                    range = 0..23,
+                    suffix = "时",
+                    onValueChange = { selectedHour = it }
+                )
+                Text(
+                    text = ":",
+                    color = NeoText,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+                WheelNumberPicker(
+                    value = selectedMinute,
+                    range = 0..59,
+                    suffix = "分",
+                    onValueChange = { selectedMinute = it }
+                )
+            }
+        },
+        containerColor = NeoSurface,
+        shape = RoundedCornerShape(18.dp)
     )
+}
+
+@Composable
+private fun WheelNumberPicker(
+    value: Int,
+    range: IntRange,
+    suffix: String,
+    onValueChange: (Int) -> Unit
+) {
+    val values = remember(range) { range.toList() }
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = (value - range.first).coerceIn(0, values.lastIndex)
+    )
+
+    LaunchedEffect(value) {
+        val index = (value - range.first).coerceIn(0, values.lastIndex)
+        if (listState.firstVisibleItemIndex != index) {
+            listState.animateScrollToItem(index)
+        }
+    }
+
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
+            if (!scrolling) {
+                val selected = (range.first + listState.firstVisibleItemIndex)
+                    .coerceIn(range.first, range.last)
+                if (selected != value) {
+                    onValueChange(selected)
+                }
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .width(112.dp)
+            .height(176.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color.White.copy(alpha = 0.55f))
+                .border(1.dp, Color.White.copy(alpha = 0.86f), RoundedCornerShape(14.dp))
+        )
+
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(vertical = 64.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            items(values) { number ->
+                val selected = number == value
+                Text(
+                    text = "%02d%s".format(number, suffix),
+                    color = if (selected) NeoText else NeoTextMuted.copy(alpha = 0.56f),
+                    fontSize = if (selected) 24.sp else 18.sp,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                    modifier = Modifier
+                        .height(48.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onValueChange(number) }
+                        .wrapContentHeight(Alignment.CenterVertically),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+    }
 }
 
 // Preset Colors
