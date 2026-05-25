@@ -5,13 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,20 +25,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -60,14 +49,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.counhopig.ccalendar.data.AppSettingsRepository
 import com.counhopig.ccalendar.ui.model.Event
 import com.counhopig.ccalendar.ui.theme.CCalendarTheme
 import com.counhopig.ccalendar.ui.viewmodel.EventViewModel
@@ -75,16 +65,9 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
-import java.time.temporal.ChronoUnit
 import java.util.Locale
+import kotlin.math.absoluteValue
 
-private val NeoBackground = Color(0xFFE9EEF6)
-private val NeoSurface = Color(0xFFE9EEF6)
-private val NeoSurfaceLight = Color(0xFFF8FAFE)
-private val NeoText = Color(0xFF243044)
-private val NeoTextMuted = Color(0xFF738099)
-private val NeoAccent = Color(0xFF7C5CFF)
-private val NeoAccentSoft = Color(0xFFE2DEFF)
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -97,29 +80,20 @@ fun MonthScreen(
     val context = LocalContext.current
     val locale = remember { Locale.getDefault() }
     val today = remember { LocalDate.now() }
-    val appSettingsRepository = remember { AppSettingsRepository(context) }
-    var appSettings by remember { mutableStateOf(appSettingsRepository.getSettings()) }
     var selectedDate by remember { mutableStateOf(initialSelectedDate ?: today) }
     val scope = rememberCoroutineScope()
 
-    val basePage = Int.MAX_VALUE / 2
-    val initialMonthOffset = remember(initialSelectedDate) {
-        initialSelectedDate?.let {
-            ChronoUnit.MONTHS.between(YearMonth.from(today), YearMonth.from(it)).toInt()
-        } ?: 0
-    }
-    val pagerState = rememberPagerState(initialPage = basePage + initialMonthOffset, pageCount = { Int.MAX_VALUE })
+    val initialPage = Int.MAX_VALUE / 2
+    val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { Int.MAX_VALUE })
 
     val currentMonth = remember(pagerState.currentPage) {
-        val monthsToAdd = pagerState.currentPage - basePage
+        val monthsToAdd = pagerState.currentPage - initialPage
         YearMonth.from(today).plusMonths(monthsToAdd.toLong())
     }
-    var activeMonth by remember { mutableStateOf(currentMonth) }
 
     // Sheet states
     var showEventEditSheet by remember { mutableStateOf(false) }
     var showCalendarSheet by remember { mutableStateOf(false) }
-    var showAppSettingsSheet by remember { mutableStateOf(false) }
     var showWidgetSettingsSheet by remember { mutableStateOf(false) }
     var eventToEdit by remember { mutableStateOf<Event?>(null) }
     val eventEditSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -165,18 +139,6 @@ fun MonthScreen(
         )
     }
 
-    if (showAppSettingsSheet) {
-        AppSettingsSheet(
-            settings = appSettings,
-            onSave = { settings ->
-                appSettingsRepository.saveSettings(settings)
-                appSettings = settings
-                showAppSettingsSheet = false
-            },
-            onDismissRequest = { showAppSettingsSheet = false }
-        )
-    }
-
     if (showWidgetSettingsSheet) {
         WidgetSettingsSheet(
             viewModel = viewModel,
@@ -186,9 +148,9 @@ fun MonthScreen(
 
     val bg = Brush.verticalGradient(
         listOf(
-            Color(0xFFF6F8FC),
-            NeoBackground,
-            Color(0xFFDDE5F0)
+            Color(0xFF0B1220),
+            Color(0xFF0B1220),
+            Color(0xFF060A12)
         )
     )
 
@@ -198,22 +160,8 @@ fun MonthScreen(
     }
 
     // Reload events when month or selection changes
-    LaunchedEffect(activeMonth, viewModel.selectedCalendarIds) {
-        viewModel.loadSystemEvents(context, activeMonth)
-    }
-
-    // Keep the agenda panel aligned with the month currently on screen.
-    LaunchedEffect(currentMonth, pagerState.isScrollInProgress) {
-        if (!pagerState.isScrollInProgress) {
-            activeMonth = currentMonth
-            if (YearMonth.from(selectedDate) != currentMonth) {
-                selectedDate = if (currentMonth == YearMonth.from(today)) {
-                    today
-                } else {
-                    currentMonth.atDay(1)
-                }
-            }
-        }
+    LaunchedEffect(currentMonth, viewModel.selectedCalendarIds) {
+        viewModel.loadSystemEvents(context, currentMonth)
     }
 
     val onDateClick = { date: LocalDate ->
@@ -233,22 +181,21 @@ fun MonthScreen(
             Column(
                 modifier = Modifier
                     .padding(16.dp)
-                .fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 val onTodayClick = {
                     selectedDate = today
                     scope.launch {
-                        pagerState.animateScrollToPage(basePage)
+                        pagerState.scrollToPage(initialPage)
                     }
                     Unit
                 }
                 
                 Header(
-                    title = activeMonth.month.getDisplayName(TextStyle.FULL, locale),
-                    subtitle = activeMonth.year.toString(),
+                    title = currentMonth.month.getDisplayName(TextStyle.FULL, locale),
+                    subtitle = currentMonth.year.toString(),
                     onSettingsClick = { showCalendarSheet = true },
-                    onAppSettingsClick = { showAppSettingsSheet = true },
                     onWidgetSettingsClick = { showWidgetSettingsSheet = true },
                     onTodayClick = onTodayClick
                 )
@@ -258,27 +205,42 @@ fun MonthScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) { page ->
                     val monthForPage = remember(page) {
-                        val monthsToAdd = page - basePage
+                        val monthsToAdd = page - initialPage
                         YearMonth.from(today).plusMonths(monthsToAdd.toLong())
                     }
 
-                    MonthCard(
-                        month = monthForPage,
-                        today = today,
-                        selectedDate = selectedDate,
-                        locale = locale,
-                        weekStartsOnMonday = appSettings.weekStartsOnMonday,
-                        showAdjacentMonthDays = appSettings.showAdjacentMonthDays,
-                        showEventDots = appSettings.showEventDots,
-                        viewModel = viewModel,
-                        onDateClick = onDateClick
-                    )
+                    Box(
+                        modifier = Modifier.graphicsLayer {
+                            val pageOffset = (
+                                (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                                ).absoluteValue
+                            alpha = lerp(
+                                start = 0.5f,
+                                stop = 1f,
+                                fraction = 1f - pageOffset.coerceIn(0f, 1f)
+                            )
+                            scaleX = lerp(
+                                start = 0.9f,
+                                stop = 1f,
+                                fraction = 1f - pageOffset.coerceIn(0f, 1f)
+                            )
+                            scaleY = scaleX
+                        }
+                    ) {
+                        MonthCard(
+                            month = monthForPage,
+                            today = today,
+                            selectedDate = selectedDate,
+                            locale = locale,
+                            viewModel = viewModel,
+                            onDateClick = onDateClick
+                        )
+                    }
                 }
 
                 AgendaCard(
                     selectedDate = selectedDate,
                     viewModel = viewModel,
-                    use24HourTime = appSettings.use24HourTime,
                     onAddClick = {
                         eventToEdit = null
                         showEventEditSheet = true
@@ -298,7 +260,6 @@ private fun Header(
     title: String,
     subtitle: String,
     onSettingsClick: () -> Unit,
-    onAppSettingsClick: () -> Unit,
     onWidgetSettingsClick: () -> Unit,
     onTodayClick: () -> Unit
 ) {
@@ -307,83 +268,54 @@ private fun Header(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 2.dp, vertical = 4.dp),
+            .padding(horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                color = NeoText,
-                fontSize = 30.sp,
+                color = Color(0xFFEAF0FF),
+                fontSize = 28.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
                 text = subtitle,
-                color = NeoTextMuted,
+                color = Color(0xFFB7C4E6),
                 fontSize = 14.sp
-            )
-        }
-
-        Surface(
-            shape = RoundedCornerShape(999.dp),
-            color = NeoSurface,
-            shadowElevation = 0.dp,
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.65f)),
-            modifier = Modifier
-                .padding(end = 8.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .clickable(onClick = onTodayClick)
-        ) {
-            Text(
-                text = "今天",
-                color = NeoAccent,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
             )
         }
         
         Box {
-            IconButton(
-                onClick = { showMenu = true },
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Settings",
+                tint = Color(0xFFB7C4E6),
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(NeoSurface)
-                    .border(1.dp, Color.White.copy(alpha = 0.65f), CircleShape)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = NeoText,
-                    modifier = Modifier.size(21.dp)
-                )
-            }
+                    .size(24.dp)
+                    .clickable(onClick = { showMenu = true })
+            )
             
             DropdownMenu(
                 expanded = showMenu,
                 onDismissRequest = { showMenu = false },
-                modifier = Modifier.background(NeoSurfaceLight)
+                modifier = Modifier.background(Color(0xFF151F3A))
             ) {
                 DropdownMenuItem(
-                    text = { Text("日历管理", color = NeoText) },
-                    leadingIcon = { Icon(Icons.Default.CalendarMonth, null, tint = NeoTextMuted) },
+                    text = { Text("返回今天", color = Color(0xFFEAF0FF)) },
+                    onClick = {
+                        onTodayClick()
+                        showMenu = false
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("日历管理", color = Color(0xFFEAF0FF)) },
                     onClick = {
                         onSettingsClick()
                         showMenu = false
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("应用设置", color = NeoText) },
-                    leadingIcon = { Icon(Icons.Default.Tune, null, tint = NeoTextMuted) },
-                    onClick = {
-                        onAppSettingsClick()
-                        showMenu = false
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("小组件设置", color = NeoText) },
-                    leadingIcon = { Icon(Icons.Default.Palette, null, tint = NeoTextMuted) },
+                    text = { Text("小组件设置", color = Color(0xFFEAF0FF)) },
                     onClick = {
                         onWidgetSettingsClick()
                         showMenu = false
@@ -403,38 +335,25 @@ private fun MonthCard(
     today: LocalDate,
     selectedDate: LocalDate,
     locale: Locale,
-    weekStartsOnMonday: Boolean,
-    showAdjacentMonthDays: Boolean,
-    showEventDots: Boolean,
     viewModel: EventViewModel,
     onDateClick: (LocalDate) -> Unit
 ) {
     Surface(
         tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
         shape = RoundedCornerShape(22.dp),
-        color = NeoSurface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.72f))
+        color = Color(0xFF0F1B33)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.White.copy(alpha = 0.35f), Color.Transparent)
-                    )
-                )
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            WeekHeader(locale, weekStartsOnMonday)
+            WeekHeader(locale)
             MonthGrid(
                 month = month,
                 today = today,
                 selectedDate = selectedDate,
-                weekStartsOnMonday = weekStartsOnMonday,
-                showAdjacentMonthDays = showAdjacentMonthDays,
-                showEventDots = showEventDots,
                 viewModel = viewModel,
                 onDateClick = onDateClick
             )
@@ -443,35 +362,23 @@ private fun MonthCard(
 }
 
 @Composable
-private fun WeekHeader(locale: Locale, weekStartsOnMonday: Boolean) {
-    val dayOrder = if (weekStartsOnMonday) {
-        listOf(
-            DayOfWeek.MONDAY,
-            DayOfWeek.TUESDAY,
-            DayOfWeek.WEDNESDAY,
-            DayOfWeek.THURSDAY,
-            DayOfWeek.FRIDAY,
-            DayOfWeek.SATURDAY,
-            DayOfWeek.SUNDAY
-        )
-    } else {
-        listOf(
-            DayOfWeek.SUNDAY,
-            DayOfWeek.MONDAY,
-            DayOfWeek.TUESDAY,
-            DayOfWeek.WEDNESDAY,
-            DayOfWeek.THURSDAY,
-            DayOfWeek.FRIDAY,
-            DayOfWeek.SATURDAY
-        )
-    }
+private fun WeekHeader(locale: Locale) {
+    val dayOrder = listOf(
+        DayOfWeek.MONDAY,
+        DayOfWeek.TUESDAY,
+        DayOfWeek.WEDNESDAY,
+        DayOfWeek.THURSDAY,
+        DayOfWeek.FRIDAY,
+        DayOfWeek.SATURDAY,
+        DayOfWeek.SUNDAY
+    )
 
     Row(modifier = Modifier.fillMaxWidth()) {
         dayOrder.forEach { dow ->
             Text(
                 text = dow.getDisplayName(TextStyle.SHORT, locale),
                 modifier = Modifier.fillMaxWidth().weight(1f, fill = true),
-                color = NeoTextMuted,
+                color = Color(0xFFB7C4E6),
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center
             )
@@ -484,46 +391,40 @@ private fun MonthGrid(
     month: YearMonth,
     today: LocalDate,
     selectedDate: LocalDate,
-    weekStartsOnMonday: Boolean,
-    showAdjacentMonthDays: Boolean,
-    showEventDots: Boolean,
     viewModel: EventViewModel,
     onDateClick: (LocalDate) -> Unit
 ) {
     val first = month.atDay(1)
-    val firstDayOffset = if (weekStartsOnMonday) {
-        (first.dayOfWeek.value + 6) % 7
-    } else {
-        first.dayOfWeek.value % 7
-    }
-    val firstVisibleDate = first.minusDays(firstDayOffset.toLong())
+    val daysInMonth = month.lengthOfMonth()
+    val mondayBasedIndex = ((first.dayOfWeek.value + 6) % 7) // Monday=0
 
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    var day = 1
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (row in 0 until 6) {
             Row(modifier = Modifier.fillMaxWidth()) {
                 for (col in 0 until 7) {
                     val cellIndex = row * 7 + col
-                    val cellDate = firstVisibleDate.plusDays(cellIndex.toLong())
-                    val inMonth = YearMonth.from(cellDate) == month
+                    val inMonth = cellIndex >= mondayBasedIndex && day <= daysInMonth
+
+                    val cellDate = if (inMonth) month.atDay(day) else null
                     val isToday = cellDate == today
                     val isSelected = cellDate == selectedDate
 
                     DayCell(
-                        text = if (inMonth || showAdjacentMonthDays) cellDate.dayOfMonth.toString() else "",
+                        text = if (inMonth) day.toString() else "",
                         isToday = isToday,
                         isSelected = isSelected,
                         isInMonth = inMonth,
-                        eventColors = if (inMonth && showEventDots) {
-                            viewModel.getEventsForDate(cellDate).map { it.color }.distinct().take(3)
-                        } else {
-                            emptyList()
-                        },
+                        eventCount = if (cellDate != null) viewModel.getEventsForDate(cellDate).size else 0,
                         modifier = Modifier.weight(1f),
-                        enabled = inMonth,
-                        onClick = { onDateClick(cellDate) }
+                        onClick = { if (cellDate != null) onDateClick(cellDate) }
                     )
+
+                    if (inMonth) day++
                 }
             }
+            if (day > daysInMonth) break
         }
     }
 }
@@ -534,51 +435,29 @@ private fun DayCell(
     isToday: Boolean,
     isSelected: Boolean,
     isInMonth: Boolean,
-    eventColors: List<Color> = emptyList(),
+    eventCount: Int = 0,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true,
     onClick: () -> Unit = {}
 ) {
-    val targetBg = when {
-        isSelected -> NeoAccent
-        isToday -> NeoAccentSoft
+    val bg = when {
+        isSelected -> Color(0xFF7C5CFF)
         else -> Color.Transparent
     }
-    val bg by animateColorAsState(
-        targetValue = targetBg,
-        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
-        label = "dayBackground"
-    )
 
-    val targetTextColor = when {
+    val textColor = when {
         isSelected -> Color.White
-        isToday -> NeoAccent
-        isInMonth -> NeoText
-        else -> NeoTextMuted.copy(alpha = 0.45f)
+        isToday -> Color(0xFF7C5CFF)
+        isInMonth -> Color(0xFFEAF0FF)
+        else -> Color(0xFFB7C4E6)
     }
-    val textColor by animateColorAsState(
-        targetValue = targetTextColor,
-        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
-        label = "dayTextColor"
-    )
-    val borderWidth by animateDpAsState(
-        targetValue = if (isToday && !isSelected) 1.dp else 0.dp,
-        animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
-        label = "dayBorderWidth"
-    )
 
     Box(
         modifier = modifier
             .aspectRatio(1f)
-            .padding(1.dp)
+            .padding(2.dp)
             .clip(RoundedCornerShape(12.dp))
-            .clickable(enabled = enabled, onClick = onClick)
-            .background(bg)
-            .border(
-                width = borderWidth,
-                color = if (isToday && !isSelected) Color.White.copy(alpha = 0.75f) else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
-            ),
+            .clickable(onClick = onClick)
+            .background(bg),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -591,21 +470,20 @@ private fun DayCell(
                 fontSize = 14.sp,
                 fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Medium
             )
-            if (eventColors.isNotEmpty()) {
+            if (eventCount > 0) {
                 Spacer(Modifier.height(2.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    eventColors.forEach { eventColor ->
+                    repeat(minOf(eventCount, 3)) {
                         Box(
                             modifier = Modifier
                                 .size(4.dp)
                                 .clip(RoundedCornerShape(50))
-                                .background(if (isSelected) Color.White else eventColor)
+                                .background(if (isSelected) Color.White else Color(0xFF7C5CFF))
                                 .padding(horizontal = 1.dp)
                         )
-                        Spacer(Modifier.width(2.dp))
                     }
                 }
             }
@@ -617,29 +495,18 @@ private fun DayCell(
 private fun AgendaCard(
     selectedDate: LocalDate, 
     viewModel: EventViewModel,
-    use24HourTime: Boolean,
     onAddClick: () -> Unit,
     onEventClick: (Event) -> Unit
 ) {
     Surface(
         tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
         shape = RoundedCornerShape(22.dp),
-        color = NeoSurface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.72f))
+        color = Color(0xFF0F1B33)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .animateContentSize(
-                    animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing)
-                )
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.White.copy(alpha = 0.35f), Color.Transparent)
-                    )
-                )
-                .padding(14.dp)
+                .padding(16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -647,67 +514,47 @@ private fun AgendaCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val titleText = if (selectedDate == LocalDate.now()) "今日日程" else "${selectedDate.monthValue}月${selectedDate.dayOfMonth}日"
-                Column {
-                    Text(
-                        text = titleText,
-                        color = NeoText,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = selectedDate.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault()),
-                        color = NeoTextMuted,
-                        fontSize = 12.sp
-                    )
-                }
+                Text(
+                    text = titleText,
+                    color = Color(0xFFEAF0FF),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
                 
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(NeoAccent)
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0xFF151F3A))
                         .clickable(onClick = onAddClick),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "Add",
-                        tint = Color.White,
+                        tint = Color(0xFFEAF0FF),
                         modifier = Modifier.size(20.dp)
                     )
                 }
             }
             
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(6.dp))
 
             val events = viewModel.getEventsForDate(selectedDate)
 
             if (events.isEmpty()) {
-                Surface(
-                    color = NeoSurface,
-                    shadowElevation = 0.dp,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.65f))
-                ) {
-                    Text(
-                        text = "暂无日程，今天可以轻松一点。",
-                        color = NeoTextMuted,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(14.dp)
-                    )
-                }
+                Text(
+                    text = "${selectedDate} · 暂无日程",
+                    color = Color(0xFFB7C4E6),
+                    fontSize = 13.sp
+                )
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(events) { event ->
-                        EventItem(
-                            event = event,
-                            use24HourTime = use24HourTime,
-                            onClick = { onEventClick(event) }
-                        )
+                        EventItem(event = event, onClick = { onEventClick(event) })
                     }
                 }
             }
@@ -716,25 +563,18 @@ private fun AgendaCard(
 }
 
 @Composable
-private fun EventItem(
-    event: com.counhopig.ccalendar.ui.model.Event,
-    use24HourTime: Boolean,
-    onClick: () -> Unit
-) {
+private fun EventItem(event: com.counhopig.ccalendar.ui.model.Event, onClick: () -> Unit) {
     Row(
         modifier = androidx.compose.ui.Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(NeoSurface)
-            .border(1.dp, Color.White.copy(alpha = 0.65f), RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(vertical = 4.dp),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
     ) {
         // 颜色指示条
         Box(
             modifier = androidx.compose.ui.Modifier
-                .size(5.dp, 34.dp)
+                .size(4.dp, 20.dp)
                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
                 .background(event.color)
         )
@@ -745,14 +585,14 @@ private fun EventItem(
         ) {
             Text(
                 text = event.title,
-                color = NeoText,
+                color = androidx.compose.ui.graphics.Color(0xFFEAF0FF),
                 fontSize = 14.sp,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
             )
             if (event.description.isNotBlank()) {
                 Text(
                     text = event.description,
-                    color = NeoTextMuted,
+                    color = androidx.compose.ui.graphics.Color(0xFFB7C4E6),
                     fontSize = 12.sp,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -761,10 +601,10 @@ private fun EventItem(
             if (event.hasTime) {
                 val timeText = buildString {
                     if (event.startTime != null) {
-                        append(event.startTime.formatForDisplay(use24HourTime))
+                        append(event.startTime.toString().substring(0, 5))
                         if (event.endTime != null) {
                             append(" - ")
-                            append(event.endTime.formatForDisplay(use24HourTime))
+                            append(event.endTime.toString().substring(0, 5))
                         }
                     } else if (!event.isAllDay) {
                         append("全天")
@@ -773,7 +613,7 @@ private fun EventItem(
                 if (timeText.isNotEmpty()) {
                     Text(
                         text = timeText,
-                        color = NeoAccent,
+                        color = androidx.compose.ui.graphics.Color(0xFF7C5CFF),
                         fontSize = 11.sp
                     )
                 }
@@ -784,24 +624,10 @@ private fun EventItem(
             Icon(
                 imageVector = Icons.Filled.Notifications,
                 contentDescription = "提醒",
-                tint = NeoTextMuted,
+                tint = Color(0xFFB7C4E6),
                 modifier = Modifier.size(16.dp)
             )
         }
-    }
-}
-
-private fun java.time.LocalTime.formatForDisplay(use24HourTime: Boolean): String {
-    return if (use24HourTime) {
-        "%02d:%02d".format(hour, minute)
-    } else {
-        val hour12 = when {
-            hour == 0 -> 12
-            hour > 12 -> hour - 12
-            else -> hour
-        }
-        val period = if (hour < 12) "上午" else "下午"
-        "$period %d:%02d".format(hour12, minute)
     }
 }
 

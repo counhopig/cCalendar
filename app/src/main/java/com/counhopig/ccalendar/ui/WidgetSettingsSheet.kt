@@ -20,12 +20,6 @@ import com.counhopig.ccalendar.data.WidgetSettings
 import com.counhopig.ccalendar.data.WidgetSettingsRepository
 import com.counhopig.ccalendar.ui.viewmodel.EventViewModel
 
-private val NeoBackground = Color(0xFFE9EEF6)
-private val NeoSurface = Color(0xFFE9EEF6)
-private val NeoText = Color(0xFF243044)
-private val NeoTextMuted = Color(0xFF738099)
-private val NeoAccent = Color(0xFF7C5CFF)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WidgetSettingsSheet(
@@ -44,7 +38,7 @@ fun WidgetSettingsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = NeoBackground,
+        containerColor = MaterialTheme.colorScheme.surface,
     ) {
         Column(
             modifier = Modifier
@@ -56,7 +50,7 @@ fun WidgetSettingsSheet(
             Text(
                 "小组件设置",
                 style = MaterialTheme.typography.titleLarge,
-                color = NeoText
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             // Font Color
@@ -79,40 +73,22 @@ fun WidgetSettingsSheet(
 
             // Transparency
             Column {
-               Text(
-                   "背景透明度: ${(settings.backgroundTransparency * 100).toInt()}%",
-                   style = MaterialTheme.typography.bodyMedium,
-                   color = NeoTextMuted
-               )
+               Text("背景透明度: ${(settings.backgroundTransparency * 100).toInt()}%", style = MaterialTheme.typography.bodyMedium)
                Slider(
                    value = settings.backgroundTransparency,
                    onValueChange = { settings = settings.copy(backgroundTransparency = it) },
-                   valueRange = 0f..1f,
-                   colors = SliderDefaults.colors(
-                       thumbColor = NeoAccent,
-                       activeTrackColor = NeoAccent,
-                       inactiveTrackColor = Color(0xFFD0D8E6)
-                   )
+                   valueRange = 0f..1f
                )
             }
 
             // Corner Radius
             Column {
-                Text(
-                    "圆角: ${settings.cornerRadius} dp",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = NeoTextMuted
-                )
+                Text("圆角: ${settings.cornerRadius} dp", style = MaterialTheme.typography.bodyMedium)
                 Slider(
                     value = settings.cornerRadius.toFloat(),
                     onValueChange = { settings = settings.copy(cornerRadius = it.toInt()) },
                     valueRange = 0f..40f,
-                    steps = 40,
-                    colors = SliderDefaults.colors(
-                        thumbColor = NeoAccent,
-                        activeTrackColor = NeoAccent,
-                        inactiveTrackColor = Color(0xFFD0D8E6)
-                    )
+                    steps = 40
                 )
             }
 
@@ -122,13 +98,9 @@ fun WidgetSettingsSheet(
                     viewModel.updateWidgets(context) // Helper to trigger update
                     onDismissRequest()
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, Color.White.copy(alpha = 0.72f), RoundedCornerShape(18.dp)),
-                colors = ButtonDefaults.buttonColors(containerColor = NeoAccent),
-                shape = RoundedCornerShape(18.dp)
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text("保存并在桌面更新", color = Color.White)
+                Text("保存并在桌面更新")
             }
             
             Spacer(modifier = Modifier.height(16.dp))
@@ -149,14 +121,14 @@ fun ColorSettingRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, style = MaterialTheme.typography.bodyLarge, color = NeoText)
+        Text(label, style = MaterialTheme.typography.bodyLarge)
         
         Box(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
                 .background(color)
-                .border(2.dp, Color.White.copy(alpha = 0.72f), CircleShape)
+                .border(2.dp, MaterialTheme.colorScheme.outline, CircleShape)
                 .clickable { showDialog = true }
         )
     }
@@ -189,16 +161,14 @@ fun ColorPickerDialog(
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = NeoSurface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.72f))
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("选择颜色", style = MaterialTheme.typography.titleMedium, color = NeoText)
+                Text("选择颜色", style = MaterialTheme.typography.titleMedium)
 
                 // Preview
                 Box(
@@ -206,7 +176,7 @@ fun ColorPickerDialog(
                         .size(80.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(currentColor)
-                        .border(1.dp, Color.White.copy(alpha = 0.72f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.Gray, RoundedCornerShape(8.dp))
                 )
 
                 // Sliders
@@ -218,12 +188,8 @@ fun ColorPickerDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = onDismiss) { Text("取消", color = NeoTextMuted) }
-                    Button(
-                        onClick = { onColorSelected(currentColor) },
-                        colors = ButtonDefaults.buttonColors(containerColor = NeoAccent),
-                        shape = RoundedCornerShape(14.dp)
-                    ) { Text("确定", color = Color.White) }
+                    TextButton(onClick = onDismiss) { Text("取消") }
+                    Button(onClick = { onColorSelected(currentColor) }) { Text("确定") }
                 }
             }
         }
@@ -233,13 +199,13 @@ fun ColorPickerDialog(
 @Composable
 fun ColorSlider(label: String, value: Float, color: Color, onValueChange: (Float) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.width(20.dp), color = NeoText)
+        Text(label, modifier = Modifier.width(20.dp))
         Slider(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.weight(1f),
             colors = SliderDefaults.colors(thumbColor = color, activeTrackColor = color)
         )
-        Text((value * 255).toInt().toString(), modifier = Modifier.width(30.dp), color = NeoTextMuted)
+        Text((value * 255).toInt().toString(), modifier = Modifier.width(30.dp))
     }
 }
