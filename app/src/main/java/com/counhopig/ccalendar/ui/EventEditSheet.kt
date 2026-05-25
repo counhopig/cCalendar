@@ -154,8 +154,10 @@ fun EventEditContent(
     val appSettingsRepository = remember { AppSettingsRepository(context) }
 
     // Reminder state
-    var selectedReminderMinutesList by remember {
-        mutableStateOf(event?.reminderMinutesList?.toMutableList() ?: appSettingsRepository.getSettings().defaultReminderMinutesList.toMutableList())
+    val selectedReminderMinutesList = remember {
+        mutableStateListOf<Int>().apply {
+            addAll(event?.reminderMinutesList ?: appSettingsRepository.getSettings().defaultReminderMinutesList)
+        }
     }
     var showCustomReminderDialog by remember { mutableStateOf(false) }
     var customReminderDate by remember { mutableStateOf(LocalDate.now()) }
