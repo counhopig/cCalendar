@@ -24,10 +24,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -216,81 +214,80 @@ private fun PermissionGateContent(
         Column(
             modifier = Modifier
                 .widthIn(max = 460.dp)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
+                .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             PermissionTopBar(badge)
 
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(26.dp),
+                shape = RoundedCornerShape(20.dp),
                 color = Color.White.copy(alpha = 0.58f),
                 tonalElevation = 0.dp,
                 shadowElevation = 0.dp,
                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.78f))
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 22.dp, vertical = 26.dp),
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     PermissionHeroIcon()
 
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
                             text = title,
                             color = PermissionText,
-                            style = MaterialTheme.typography.headlineSmall,
+                            style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center,
-                            lineHeight = 32.sp
+                            lineHeight = 26.sp
                         )
                         Text(
                             text = description,
                             color = PermissionTextMuted,
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = MaterialTheme.typography.bodyMedium,
                             textAlign = TextAlign.Center,
-                            lineHeight = 24.sp
+                            lineHeight = 20.sp
                         )
                     }
 
                     PermissionBenefitRow(
                         icon = Icons.Default.CalendarMonth,
                         title = "读取日程",
-                        description = "在月视图中显示系统日历事件。"
+                        description = "在月视图中显示系统日历事件"
                     )
                     PermissionBenefitRow(
                         icon = Icons.Default.Edit,
                         title = "创建和编辑",
-                        description = "直接在应用内新增、修改日程。"
+                        description = "直接在应用内新增、修改日程"
                     )
                     PermissionBenefitRow(
                         icon = Icons.Default.Lock,
                         title = "本机处理",
-                        description = "日历数据仅用于本地展示和小组件刷新。"
+                        description = "日历数据仅用于本地展示和小组件刷新"
                     )
                 }
             }
 
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
                     onClick = onPrimaryAction,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp),
+                        .height(48.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = PermissionAccent,
                         contentColor = Color.White
                     ),
-                    shape = RoundedCornerShape(18.dp)
+                    shape = RoundedCornerShape(14.dp)
                 ) {
                     Text(primaryActionText, fontWeight = FontWeight.SemiBold)
                 }
@@ -300,10 +297,10 @@ private fun PermissionGateContent(
                         onClick = onSecondaryAction,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(54.dp),
+                            .height(48.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = PermissionText),
                         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.82f)),
-                        shape = RoundedCornerShape(18.dp)
+                        shape = RoundedCornerShape(14.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
@@ -319,9 +316,9 @@ private fun PermissionGateContent(
             Text(
                 text = footerText,
                 color = PermissionTextMuted,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
-                lineHeight = 22.sp,
+                lineHeight = 18.sp,
                 modifier = Modifier.padding(horizontal = 8.dp)
             )
         }
@@ -373,19 +370,19 @@ private fun PermissionTopBar(badge: String) {
 private fun PermissionHeroIcon() {
     Box(
         modifier = Modifier
-            .size(78.dp)
+            .size(56.dp)
             .background(
                 Brush.verticalGradient(listOf(PermissionAccent, PermissionAccentDeep)),
-                RoundedCornerShape(24.dp)
+                RoundedCornerShape(18.dp)
             )
-            .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(24.dp)),
+            .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(18.dp)),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = Icons.Default.CalendarMonth,
             contentDescription = null,
             tint = Color.White,
-            modifier = Modifier.size(38.dp)
+            modifier = Modifier.size(28.dp)
         )
     }
 }
@@ -399,14 +396,14 @@ private fun PermissionBenefitRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(PermissionSurfaceLight.copy(alpha = 0.68f), RoundedCornerShape(18.dp))
-            .border(1.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(18.dp))
-            .padding(14.dp),
+            .background(PermissionSurfaceLight.copy(alpha = 0.68f), RoundedCornerShape(14.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Surface(
-            modifier = Modifier.size(38.dp),
+            modifier = Modifier.size(32.dp),
             shape = CircleShape,
             color = PermissionAccentSoft
         ) {
@@ -415,22 +412,23 @@ private fun PermissionBenefitRow(
                     imageVector = icon,
                     contentDescription = null,
                     tint = PermissionAccent,
-                    modifier = Modifier.size(19.dp)
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(
                 text = title,
                 color = PermissionText,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodyMedium
             )
             Text(
                 text = description,
                 color = PermissionTextMuted,
-                style = MaterialTheme.typography.bodyLarge,
-                lineHeight = 21.sp
+                style = MaterialTheme.typography.bodySmall,
+                lineHeight = 18.sp
             )
         }
     }
