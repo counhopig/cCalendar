@@ -67,6 +67,10 @@ class EventViewModel : ViewModel() {
         }
     }
 
+    fun setCalendarSelection(ids: Set<Long>) {
+        selectedCalendarIds = ids
+    }
+
     fun updateCalendarColor(calendarId: Long, color: androidx.compose.ui.graphics.Color) {
         // This won't easily work for Google Calendars due to Sync Adapter restrictions without proper ACCOUNT auth.
         // It might work for local calendars or throw SecurityException.
@@ -108,6 +112,7 @@ class EventViewModel : ViewModel() {
         updateWidgets(context)
     }
 
+    @Suppress("DEPRECATION")
     fun updateWidgets(context: Context) {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val componentName = ComponentName(context, CalendarWidget::class.java)
@@ -124,9 +129,14 @@ class EventViewModel : ViewModel() {
     }
     
     fun importIcs(context: Context, uri: Uri) {
+        initializeRepository(context)
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 try {
+                    val targetCalendarId = selectedCalendarIds.firstOrNull()
+                        ?: repository.getCalendars().firstOrNull()?.id
+                        ?: return@withContext
+
                     context.contentResolver.openInputStream(uri)?.use { inputStream ->
                         val builder = CalendarBuilder()
                         val calendar = builder.build(inputStream)
@@ -174,8 +184,7 @@ class EventViewModel : ViewModel() {
                                     endTime = null,
                                     isAllDay = isAllDay,
                                 )
-                                // Add to primary calendar by default
-                                repository.addEvent(appEvent, calendarId = 1)
+                                repository.addEvent(appEvent, calendarId = targetCalendarId)
                             }
                         }
                     }

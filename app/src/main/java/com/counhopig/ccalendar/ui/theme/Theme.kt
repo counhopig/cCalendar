@@ -1,26 +1,41 @@
 package com.counhopig.ccalendar.ui.theme
 
-import android.app.Activity
 import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = Color(0xFF8D7BFF),
+    onPrimary = Color.White,
+    secondary = Color(0xFF7DD3FC),
+    tertiary = Color(0xFFF0ABFC),
+    background = Color(0xFF08111F),
+    onBackground = Color(0xFFEAF0FF),
+    surface = Color(0xFF0F1B33),
+    onSurface = Color(0xFFEAF0FF),
+    surfaceVariant = Color(0xFF17233B),
+    onSurfaceVariant = Color(0xFFB7C4E6),
+    outline = Color(0xFF3B4761)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    primary = Color(0xFF6F55F2),
+    onPrimary = Color.White,
+    secondary = Color(0xFF5A6D8C),
+    tertiary = Color(0xFFB56DDA),
+    background = Color(0xFFE9EEF6),
+    onBackground = Color(0xFF243044),
+    surface = Color(0xFFE9EEF6),
+    onSurface = Color(0xFF243044),
+    surfaceVariant = Color(0xFFDDE5F0),
+    onSurfaceVariant = Color(0xFF738099),
+    outline = Color(0xFFD0D8E6)
 
     /* Other default colors to override
     background = Color(0xFFFFFBFE),
@@ -35,9 +50,9 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun CCalendarTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = false,
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
