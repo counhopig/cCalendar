@@ -1,3 +1,4 @@
 {
-    "gradle.javaDebug.cleanOutput": false
+    "gradle.javaDebug.cleanOutput": false,
+    "androidRunner.sdkPath": "D:\\android_sdk"
 }

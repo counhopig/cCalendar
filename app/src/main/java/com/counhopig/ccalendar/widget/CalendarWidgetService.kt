@@ -18,6 +18,11 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
 
+private data class WidgetDayCell(
+    val date: LocalDate,
+    val isTargetMonth: Boolean
+)
+
 class CalendarWidgetService : RemoteViewsService() {
     override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
         return CalendarRemoteViewsFactory(this.applicationContext, intent)
@@ -31,7 +36,7 @@ class CalendarRemoteViewsFactory(
 
     private val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
     private val monthOffset = intent.getIntExtra("MONTH_OFFSET", 0)
-    private val days = mutableListOf<String>()
+    private val days = mutableListOf<WidgetDayCell>()
     
     // Store daily events in a map
     private val eventsMap = mutableMapOf<LocalDate, List<Event>>()
@@ -87,29 +92,17 @@ class CalendarRemoteViewsFactory(
         val month = YearMonth.now().plusMonths(monthOffset.toLong())
         
         val first = month.atDay(1)
-        val daysInMonth = month.lengthOfMonth()
         
         // Sunday=7, Monday=1 ... Saturday=6
         // Grid starts at Sunday.
         // If first is Sunday(7), offset = 0.
         // If first is Monday(1), offset = 1.
         val offset = first.dayOfWeek.value % 7
+        val firstVisibleDate = first.minusDays(offset.toLong())
 
-        for (i in 0 until offset) {
-            days.add("")
-        }
-        for (i in 1..daysInMonth) {
-            days.add(i.toString())
-        }
-        
-        // Only fill up to the end of the current week row, do not force 6 rows
-        val totalCells = days.size
-        val currentRowRemainder = totalCells % 7
-        if (currentRowRemainder != 0) {
-            val needed = 7 - currentRowRemainder
-            for (i in 0 until needed) {
-                days.add("") 
-            }
+        repeat(42) { index ->
+            val cellDate = firstVisibleDate.plusDays(index.toLong())
+            days.add(WidgetDayCell(cellDate, YearMonth.from(cellDate) == month))
         }
     }
 
@@ -121,7 +114,9 @@ class CalendarRemoteViewsFactory(
         val views = RemoteViews(context.packageName, R.layout.widget_day_cell)
         if (position >= days.size) return views 
         
-        val text = days[position]
+        val cell = days[position]
+        val cellDate = cell.date
+        val text = cellDate.dayOfMonth.toString()
         views.setTextViewText(R.id.cell_day_text, text)
         
         // Clear previous states
@@ -129,92 +124,80 @@ class CalendarRemoteViewsFactory(
         views.setViewVisibility(R.id.cell_event_2, View.GONE)
         views.setViewVisibility(R.id.cell_more_text, View.GONE)
         
-        if (text.isNotEmpty()) {
-             val day = try { text.toInt() } catch(e: Exception) { -1 }
-             if (day == -1) return views
-
-              // Get the displayed month/year based on offset
-              val targetMonth = YearMonth.now().plusMonths(monthOffset.toLong())
-              val cellDate = targetMonth.atDay(day)
-              val today = LocalDate.now()
+        val today = LocalDate.now()
              
-             // Check if this cell represents "Today"
-             if (today == cellDate) {
-                 views.setTextColor(R.id.cell_day_text, Color.WHITE) // Keep Today White for visibility on highlight
-                 views.setInt(R.id.cell_day_text, "setBackgroundResource", R.drawable.widget_today_bg)
-             } else {
-                 views.setTextColor(R.id.cell_day_text, fontColor)
-                 views.setInt(R.id.cell_day_text, "setBackgroundResource", 0)
-             }
-             
-             // --- Load Events ---
-             val dailyEvents = eventsMap[cellDate]?.take(2) // Only show top 2 to fit
-             val allDailyEvents = eventsMap[cellDate] ?: emptyList()
-             
-             if (allDailyEvents.isNotEmpty()) {
-                 // Function to setup event view
-                 fun setupEventView(event: Event, bgParams: Pair<Int, Int>, textId: Int, bgId: Int, containerId: Int) {
-                     views.setViewVisibility(containerId, View.VISIBLE)
-                     views.setTextViewText(textId, event.title)
-                     
-                     // Check neighbors for connection (visual shape)
-                     val prevDay = cellDate.minusDays(1)
-                     val nextDay = cellDate.plusDays(1)
-                     
-                     val prevEvents = eventsMap[prevDay] ?: emptyList()
-                     val nextEvents = eventsMap[nextDay] ?: emptyList()
-                     
-                     val continuesLeft = prevEvents.any { it.id == event.id }
-                     val continuesRight = nextEvents.any { it.id == event.id }
-                     
-                     // Text logic: Show title only on start or if disconnected from left
-                     val showText = !continuesLeft
-                     views.setTextViewText(textId, if (showText) event.title else "")
-                     
-                     val bgRes = when {
-                         continuesLeft && continuesRight -> R.drawable.shape_event_item_middle
-                         continuesLeft && !continuesRight -> R.drawable.shape_event_item_end
-                         !continuesLeft && continuesRight -> R.drawable.shape_event_item_start
-                         else -> R.drawable.shape_event_item_single
-                     }
-                     
-                     views.setImageViewResource(bgId, bgRes)
-                     val c = event.color.toArgb()
-                     views.setInt(bgId, "setColorFilter", c)
-
-                     // If middle/end, maybe hide text or keep it? 
-                     // Usually repeating text is fine, but maybe redundant if it's very short.
-                     // The requirement is "connected color block".
-                     // Text color - ensure contrast. If color is dark, text white. If light, text black.
-                     // Simple heuristic: default white text for calendar colors which are usually distinct.
-                 }
-
-                 if (allDailyEvents.isNotEmpty()) {
-                     setupEventView(allDailyEvents[0], 0 to 0, R.id.cell_event_1_text, R.id.cell_event_1_bg, R.id.cell_event_1)
-                 }
-                 
-                 if (allDailyEvents.size > 1) {
-                     setupEventView(allDailyEvents[1], 0 to 0, R.id.cell_event_2_text, R.id.cell_event_2_bg, R.id.cell_event_2)
-                 }
-
-                 if (allDailyEvents.size > 2) {
-                     views.setViewVisibility(R.id.cell_more_text, View.VISIBLE)
-                     val moreCount = allDailyEvents.size - 2
-                     views.setTextViewText(R.id.cell_more_text, "+$moreCount")
-                 }
-             }
-
-             // Fill in intent to open app on specific day
-             val dateStr = cellDate.toString()
-             val fillInIntent = Intent().apply {
-                 putExtra("SELECTED_DATE", dateStr)
-             }
-             views.setOnClickFillInIntent(R.id.cell_root, fillInIntent)
-             
+        // Check if this cell represents "Today"
+        if (today == cellDate) {
+            views.setTextColor(R.id.cell_day_text, Color.WHITE) // Keep Today White for visibility on highlight
+            views.setInt(R.id.cell_day_text, "setBackgroundResource", R.drawable.widget_today_bg)
         } else {
-             views.setTextColor(R.id.cell_day_text, Color.TRANSPARENT)
-             views.setInt(R.id.cell_day_text, "setBackgroundResource", 0)
+            views.setTextColor(
+                R.id.cell_day_text,
+                if (cell.isTargetMonth) fontColor else fontColor.withAlpha(0.36f)
+            )
+            views.setInt(R.id.cell_day_text, "setBackgroundResource", 0)
         }
+             
+        // --- Load Events ---
+        val allDailyEvents = if (cell.isTargetMonth) eventsMap[cellDate] ?: emptyList() else emptyList()
+             
+        if (allDailyEvents.isNotEmpty()) {
+            // Function to setup event view
+            fun setupEventView(event: Event, textId: Int, bgId: Int, containerId: Int) {
+                views.setViewVisibility(containerId, View.VISIBLE)
+                views.setTextViewText(textId, event.title)
+                     
+                // Check neighbors for connection (visual shape)
+                val prevDay = cellDate.minusDays(1)
+                val nextDay = cellDate.plusDays(1)
+                     
+                val prevEvents = eventsMap[prevDay] ?: emptyList()
+                val nextEvents = eventsMap[nextDay] ?: emptyList()
+                     
+                val continuesLeft = prevEvents.any { it.id == event.id }
+                val continuesRight = nextEvents.any { it.id == event.id }
+                     
+                // Text logic: Show title only on start or if disconnected from left
+                val showText = !continuesLeft
+                views.setTextViewText(textId, if (showText) event.title else "")
+                     
+                val bgRes = when {
+                    continuesLeft && continuesRight -> R.drawable.shape_event_item_middle
+                    continuesLeft && !continuesRight -> R.drawable.shape_event_item_end
+                    !continuesLeft && continuesRight -> R.drawable.shape_event_item_start
+                    else -> R.drawable.shape_event_item_single
+                }
+                     
+                views.setImageViewResource(bgId, bgRes)
+                val c = event.color.toArgb()
+                views.setInt(bgId, "setColorFilter", c)
+
+                // If middle/end, maybe hide text or keep it?
+                // Usually repeating text is fine, but maybe redundant if it's very short.
+                // The requirement is "connected color block".
+                // Text color - ensure contrast. If color is dark, text white. If light, text black.
+                // Simple heuristic: default white text for calendar colors which are usually distinct.
+            }
+
+            setupEventView(allDailyEvents[0], R.id.cell_event_1_text, R.id.cell_event_1_bg, R.id.cell_event_1)
+                 
+            if (allDailyEvents.size > 1) {
+                setupEventView(allDailyEvents[1], R.id.cell_event_2_text, R.id.cell_event_2_bg, R.id.cell_event_2)
+            }
+
+            if (allDailyEvents.size > 2) {
+                views.setViewVisibility(R.id.cell_more_text, View.VISIBLE)
+                val moreCount = allDailyEvents.size - 2
+                views.setTextViewText(R.id.cell_more_text, "+$moreCount")
+            }
+        }
+
+        // Fill in intent to open app on specific day
+        val fillInIntent = Intent().apply {
+            putExtra("SELECTED_DATE", cellDate.toString())
+        }
+        views.setOnClickFillInIntent(R.id.cell_root, fillInIntent)
+
         return views
     }
 
@@ -222,4 +205,9 @@ class CalendarRemoteViewsFactory(
     override fun getViewTypeCount(): Int = 1
     override fun getItemId(position: Int): Long = position.toLong()
     override fun hasStableIds(): Boolean = true
+}
+
+private fun Int.withAlpha(alpha: Float): Int {
+    val coercedAlpha = (Color.alpha(this) * alpha).toInt().coerceIn(0, 255)
+    return Color.argb(coercedAlpha, Color.red(this), Color.green(this), Color.blue(this))
 }
