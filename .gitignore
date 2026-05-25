@@ -58,6 +58,7 @@ Thumbs.db
 
 # Assistant specific
 .claude/
+.codex-previews/
 
 # Signing properties and local keystore (keep private)
 signing.properties
