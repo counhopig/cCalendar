@@ -154,11 +154,10 @@ fun EventEditContent(
     val appSettingsRepository = remember { AppSettingsRepository(context) }
 
     // Reminder state
-    var selectedReminderMinutes by remember {
-        mutableStateOf(event?.reminderMinutes ?: appSettingsRepository.getSettings().defaultReminderMinutes)
+    var selectedReminderMinutesList by remember {
+        mutableStateOf(event?.reminderMinutesList?.toMutableList() ?: appSettingsRepository.getSettings().defaultReminderMinutesList.toMutableList())
     }
     var showCustomReminderDialog by remember { mutableStateOf(false) }
-    var customReminderValue by remember { mutableStateOf("") }
     var customReminderDate by remember { mutableStateOf(LocalDate.now()) }
     var customReminderTime by remember { mutableStateOf(LocalTime.now()) }
     val reminderOptions = defaultReminderOptions
@@ -198,7 +197,7 @@ fun EventEditContent(
                         isAllDay = isAllDay,
                         color = Color.Transparent, // Color is managed by Calendar
                         calendarId = selectedCalendarId,
-                        reminderMinutes = selectedReminderMinutes
+                        reminderMinutesList = selectedReminderMinutesList.toList()
                     )
                     onSave(newEvent, selectedCalendarId)
                 },
@@ -277,12 +276,9 @@ fun EventEditContent(
             HorizontalDivider(color = NeoDivider)
 
             // --- Reminder Selector ---
-            Box {
+            Column {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable { showReminderMenu = true },
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
@@ -292,60 +288,115 @@ fun EventEditContent(
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(Modifier.width(16.dp))
-
-                    // 显示当前选择的提醒
-                    val displayText = remember(selectedReminderMinutes, startDate, startTime, isAllDay) {
-                        val option = reminderOptions.find { it.minutes == selectedReminderMinutes }
-                        if (option != null) {
-                            option.displayName
-                        } else {
-                            if (selectedReminderMinutes > 0) {
-                                val baseTime = if (isAllDay) startDate.atStartOfDay() else LocalDateTime.of(startDate, startTime)
-                                val reminderTime = baseTime.minusMinutes(selectedReminderMinutes.toLong())
-                                reminderTime.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日 HH:mm"))
-                            } else {
-                                "不提醒"
-                            }
-                        }
-                    }
-
                     Text(
-                        text = displayText,
+                        text = "提醒",
                         color = NeoText,
-                        fontSize = 16.sp
+                        fontSize = 16.sp,
+                        modifier = Modifier.weight(1f)
                     )
                 }
 
-                DropdownMenu(
-                    expanded = showReminderMenu,
-                    onDismissRequest = { showReminderMenu = false }
-                ) {
-                    reminderOptions.forEach { option ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = option.displayName,
-                                    color = if (option.isCustom) NeoAccent else NeoText
-                                )
-                            },
-                            onClick = {
-                                if (option.isCustom) {
-                                    // 自定义选项：打开对话框
-                                    showReminderMenu = false
-                                    // 初始化提醒时间逻辑
-                                    val baseTime = if (isAllDay) startDate.atStartOfDay() else LocalDateTime.of(startDate, startTime)
-                                    val currentDiff = if (selectedReminderMinutes > 0) selectedReminderMinutes else 0
-                                    val reminderDateTime = baseTime.minusMinutes(currentDiff.toLong())
-                                    customReminderDate = reminderDateTime.toLocalDate()
-                                    customReminderTime = reminderDateTime.toLocalTime()
-                                    showCustomReminderDialog = true
-                                } else {
-                                    // 预设选项
-                                    selectedReminderMinutes = option.minutes
-                                    showReminderMenu = false
-                                }
+                Spacer(Modifier.height(8.dp))
+
+                // 已添加的提醒列表
+                selectedReminderMinutesList.forEachIndexed { index, minutes ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 40.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        val displayText = remember(minutes, startDate, startTime, isAllDay) {
+                            val option = reminderOptions.find { it.minutes == minutes }
+                            if (option != null && !option.isCustom) {
+                                option.displayName
+                            } else if (minutes > 0) {
+                                val baseTime = if (isAllDay) startDate.atStartOfDay() else LocalDateTime.of(startDate, startTime)
+                                val reminderTime = baseTime.minusMinutes(minutes.toLong())
+                                reminderTime.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日 HH:mm"))
+                            } else {
+                                "开始时"
                             }
+                        }
+
+                        Text(
+                            text = displayText,
+                            color = NeoText,
+                            fontSize = 16.sp,
+                            modifier = Modifier.weight(1f)
                         )
+
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "删除提醒",
+                            tint = NeoTextMuted,
+                            modifier = Modifier
+                                .size(20.dp)
+                                .clickable {
+                                    selectedReminderMinutesList.removeAt(index)
+                                }
+                        )
+                    }
+                }
+
+                // 添加提醒按钮
+                Box {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 40.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { showReminderMenu = true }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            tint = NeoAccent,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "添加提醒",
+                            color = NeoAccent,
+                            fontSize = 16.sp
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showReminderMenu,
+                        onDismissRequest = { showReminderMenu = false }
+                    ) {
+                        reminderOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = option.displayName,
+                                        color = if (option.isCustom) NeoAccent else NeoText
+                                    )
+                                },
+                                onClick = {
+                                    if (option.isCustom) {
+                                        showReminderMenu = false
+                                        val baseTime = if (isAllDay) startDate.atStartOfDay() else LocalDateTime.of(startDate, startTime)
+                                        customReminderDate = baseTime.toLocalDate()
+                                        customReminderTime = baseTime.toLocalTime()
+                                        showCustomReminderDialog = true
+                                    } else if (option.minutes == 0) {
+                                        // 清除所有提醒
+                                        selectedReminderMinutesList.clear()
+                                        showReminderMenu = false
+                                    } else {
+                                        if (!selectedReminderMinutesList.contains(option.minutes)) {
+                                            selectedReminderMinutesList.add(option.minutes)
+                                        }
+                                        showReminderMenu = false
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -545,12 +596,12 @@ fun EventEditContent(
                         val minutes = Duration.between(reminderDateTime, eventDateTime).toMinutes()
 
                         if (minutes >= 0) {
-                            selectedReminderMinutes = minutes.toInt()
+                            val mins = minutes.toInt()
+                            if (mins >= 0 && !selectedReminderMinutesList.contains(mins)) {
+                                selectedReminderMinutesList.add(mins)
+                            }
                             showCustomReminderDialog = false
                         } else {
-                            // The reminder time is later than the start time. This feature is not supported yet. You can add a reminder here.
-                            // Due to the absence of Toast environment, this feature is not processed or set to 0.
-                            selectedReminderMinutes = 0
                             showCustomReminderDialog = false
                         }
                     }

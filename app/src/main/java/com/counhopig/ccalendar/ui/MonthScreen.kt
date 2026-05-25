@@ -780,7 +780,7 @@ private fun EventItem(
             }
         }
         
-        if (event.reminderMinutes > 0) {
+        if (event.reminderMinutesList.isNotEmpty()) {
             Icon(
                 imageVector = Icons.Filled.Notifications,
                 contentDescription = "提醒",

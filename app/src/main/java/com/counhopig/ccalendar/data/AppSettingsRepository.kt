@@ -7,7 +7,7 @@ data class AppSettings(
     val showAdjacentMonthDays: Boolean = true,
     val showEventDots: Boolean = true,
     val use24HourTime: Boolean = true,
-    val defaultReminderMinutes: Int = 0
+    val defaultReminderMinutesList: List<Int> = emptyList()
 )
 
 class AppSettingsRepository(private val context: Context) {
@@ -19,7 +19,12 @@ class AppSettingsRepository(private val context: Context) {
             showAdjacentMonthDays = prefs.getBoolean("show_adjacent_month_days", true),
             showEventDots = prefs.getBoolean("show_event_dots", true),
             use24HourTime = prefs.getBoolean("use_24_hour_time", true),
-            defaultReminderMinutes = prefs.getInt("default_reminder_minutes", 0)
+            defaultReminderMinutesList = prefs.getString("default_reminder_minutes_list", "")
+                ?.split(",")
+                ?.filter { it.isNotBlank() }
+                ?.map { it.toIntOrNull() ?: 0 }
+                ?.filter { it > 0 }
+                ?: emptyList()
         )
     }
 
@@ -29,7 +34,7 @@ class AppSettingsRepository(private val context: Context) {
             .putBoolean("show_adjacent_month_days", settings.showAdjacentMonthDays)
             .putBoolean("show_event_dots", settings.showEventDots)
             .putBoolean("use_24_hour_time", settings.use24HourTime)
-            .putInt("default_reminder_minutes", settings.defaultReminderMinutes)
+            .putString("default_reminder_minutes_list", settings.defaultReminderMinutesList.joinToString(","))
             .apply()
     }
 }

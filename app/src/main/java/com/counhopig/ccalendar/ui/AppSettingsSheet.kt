@@ -108,8 +108,8 @@ fun AppSettingsSheet(
                 )
                 SettingRow(title = "默认提醒", description = "新建日程时自动选择") {
                     ReminderDropdown(
-                        selectedMinutes = draft.defaultReminderMinutes,
-                        onSelected = { draft = draft.copy(defaultReminderMinutes = it) }
+                        selectedMinutes = draft.defaultReminderMinutesList.firstOrNull() ?: 0,
+                        onSelected = { draft = draft.copy(defaultReminderMinutesList = if (it == 0) emptyList() else listOf(it)) }
                     )
                 }
             }

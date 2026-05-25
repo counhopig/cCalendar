@@ -182,7 +182,7 @@ class EventViewModel : ViewModel() {
                                     originalEndDate = startDate,
                                     startTime = startTime,
                                     endTime = null,
-                                    isAllDay = isAllDay,
+                                    isAllDay = isAllDay
                                 )
                                 repository.addEvent(appEvent, calendarId = targetCalendarId)
                             }
