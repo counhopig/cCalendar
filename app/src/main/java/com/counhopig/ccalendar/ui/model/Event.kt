@@ -16,7 +16,8 @@ data class Event(
     val endTime: LocalTime? = null,
     val color: Color = Color(0xFF7C5CFF),
     val isAllDay: Boolean = false,
-    val reminderMinutesList: List<Int> = emptyList() // 多个提醒分钟数，空列表表示无提醒
+    val reminderMinutesList: List<Int> = emptyList(), // 多个提醒分钟数，空列表表示无提醒
+    val imageRefs: List<String> = emptyList()
 ) {
     val hasTime: Boolean
         get() = startTime != null || !isAllDay

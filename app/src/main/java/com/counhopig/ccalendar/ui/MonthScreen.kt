@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.DropdownMenu
@@ -780,13 +781,28 @@ private fun EventItem(
             }
         }
         
-        if (event.reminderMinutesList.isNotEmpty()) {
-            Icon(
-                imageVector = Icons.Filled.Notifications,
-                contentDescription = "提醒",
-                tint = NeoTextMuted,
-                modifier = Modifier.size(16.dp)
-            )
+        if (event.imageRefs.isNotEmpty() || event.reminderMinutesList.isNotEmpty()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (event.imageRefs.isNotEmpty()) {
+                    Icon(
+                        imageVector = Icons.Filled.Photo,
+                        contentDescription = "图片备注",
+                        tint = NeoAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                if (event.reminderMinutesList.isNotEmpty()) {
+                    Icon(
+                        imageVector = Icons.Filled.Notifications,
+                        contentDescription = "提醒",
+                        tint = NeoTextMuted,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
         }
     }
 }

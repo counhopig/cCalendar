@@ -16,6 +16,7 @@ import android.content.ContentValues
 import java.util.TimeZone
 
 class SystemCalendarRepository(val context: Context) {
+    private val imageRepository = EventImageRepository(context)
 
     fun updateCalendarColor(calendarId: Long, colorInt: Int) {
         try {
@@ -200,7 +201,8 @@ class SystemCalendarRepository(val context: Context) {
                             endTime = endTime,
                             isAllDay = allDay,
                             color = displayColor,
-                            reminderMinutesList = reminderMinutesList.toList()
+                            reminderMinutesList = reminderMinutesList.toList(),
+                            imageRefs = imageRepository.getImageRefs(id)
                         ))
                         currentDate = currentDate.plusDays(1)
                     }
@@ -266,6 +268,10 @@ class SystemCalendarRepository(val context: Context) {
                     context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
                 }
             }
+
+            if (eventId != null) {
+                imageRepository.saveImageRefs(eventId, event.imageRefs)
+            }
             
             return eventId
         } catch (e: SecurityException) {
@@ -330,6 +336,8 @@ class SystemCalendarRepository(val context: Context) {
                 }
             }
 
+            imageRepository.saveImageRefs(event.id, event.imageRefs)
+
         } catch (e: SecurityException) {
             e.printStackTrace()
         } catch (e: IllegalArgumentException) {
@@ -341,6 +349,7 @@ class SystemCalendarRepository(val context: Context) {
         try {
             val deleteUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
             context.contentResolver.delete(deleteUri, null, null)
+            imageRepository.clearImageRefs(eventId)
             // Reminders are deleted automatically by the provider
         } catch (e: SecurityException) {
             e.printStackTrace()

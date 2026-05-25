@@ -1,5 +1,10 @@
 package com.counhopig.ccalendar.ui
 
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,9 +26,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,6 +53,7 @@ private val NeoText = Color(0xFF243044)
 private val NeoTextMuted = Color(0xFF738099)
 private val NeoAccent = Color(0xFF7C5CFF)
 private val NeoDivider = Color(0xFFD0D8E6)
+private const val MaxEventImages = 6
 
 // 提醒选项数据类
 data class ReminderOption(
@@ -164,6 +173,24 @@ fun EventEditContent(
     var customReminderTime by remember { mutableStateOf(LocalTime.now()) }
     val reminderOptions = defaultReminderOptions
 
+    val selectedImageRefs = remember {
+        mutableStateListOf<String>().apply {
+            addAll(event?.imageRefs.orEmpty())
+        }
+    }
+    var previewImageRef by remember { mutableStateOf<String?>(null) }
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        val remainingSlots = MaxEventImages - selectedImageRefs.size
+        selectedImageRefs.addAll(
+            uris
+                .take(remainingSlots.coerceAtLeast(0))
+                .map { it.toString() }
+                .filterNot { it in selectedImageRefs }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -199,7 +226,8 @@ fun EventEditContent(
                         isAllDay = isAllDay,
                         color = Color.Transparent, // Color is managed by Calendar
                         calendarId = selectedCalendarId,
-                        reminderMinutesList = selectedReminderMinutesList.toList()
+                        reminderMinutesList = selectedReminderMinutesList.toList(),
+                        imageRefs = selectedImageRefs.toList()
                     )
                     onSave(newEvent, selectedCalendarId)
                 },
@@ -503,21 +531,34 @@ fun EventEditContent(
                         .padding(top = 12.dp)
                 )
                 Spacer(Modifier.width(16.dp))
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    placeholder = { Text("添加说明", color = NeoTextMuted) },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 3,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color.Transparent,
-                        unfocusedBorderColor = Color.Transparent,
-                        focusedTextColor = NeoText,
-                        unfocusedTextColor = NeoTextMuted,
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        placeholder = { Text("添加说明", color = NeoTextMuted) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            focusedTextColor = NeoText,
+                            unfocusedTextColor = NeoTextMuted,
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent
+                        )
                     )
-                )
+
+                    ImageAttachmentPicker(
+                        imageRefs = selectedImageRefs,
+                        canAddMore = selectedImageRefs.size < MaxEventImages,
+                        onAddImages = { imagePickerLauncher.launch("image/*") },
+                        onPreviewImage = { imageRef -> previewImageRef = imageRef },
+                        onRemoveImage = { imageRef -> selectedImageRefs.remove(imageRef) }
+                    )
+                }
             }
 
             // --- Delete Button (if editing) ---
@@ -618,6 +659,13 @@ fun EventEditContent(
             },
             containerColor = NeoSurface,
             shape = RoundedCornerShape(12.dp)
+        )
+    }
+
+    previewImageRef?.let { imageRef ->
+        ImagePreviewDialog(
+            imageRef = imageRef,
+            onDismiss = { previewImageRef = null }
         )
     }
 
@@ -731,6 +779,202 @@ fun EventEditContent(
                 showEndTimePicker = false
             }
         )
+    }
+}
+
+@Composable
+private fun ImageAttachmentPicker(
+    imageRefs: List<String>,
+    canAddMore: Boolean,
+    onAddImages: () -> Unit,
+    onPreviewImage: (String) -> Unit,
+    onRemoveImage: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (imageRefs.isNotEmpty()) {
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                imageRefs.forEach { imageRef ->
+                    EventImageThumbnail(
+                        imageRef = imageRef,
+                        onOpen = { onPreviewImage(imageRef) },
+                        onRemove = { onRemoveImage(imageRef) }
+                    )
+                }
+            }
+        }
+
+        if (canAddMore) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.36f), RoundedCornerShape(12.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.72f), RoundedCornerShape(12.dp))
+                    .clickable(onClick = onAddImages)
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AddPhotoAlternate,
+                    contentDescription = null,
+                    tint = NeoAccent,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = if (imageRefs.isEmpty()) "添加图片" else "继续添加图片",
+                    color = NeoAccent,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        } else {
+            Text(
+                text = "最多添加 $MaxEventImages 张图片",
+                color = NeoTextMuted,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
+}
+
+@Composable
+private fun EventImageThumbnail(
+    imageRef: String,
+    onOpen: () -> Unit,
+    onRemove: () -> Unit
+) {
+    val imageBitmap = rememberEventImageBitmap(imageRef)
+
+    Box(
+        modifier = Modifier
+            .size(88.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.46f), RoundedCornerShape(16.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.78f), RoundedCornerShape(16.dp))
+            .clickable(onClick = onOpen)
+    ) {
+        if (imageBitmap != null) {
+            Image(
+                bitmap = imageBitmap,
+                contentDescription = "已添加图片",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Photo,
+                    contentDescription = null,
+                    tint = NeoTextMuted,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(5.dp)
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.48f))
+                .clickable(onClick = onRemove),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "移除图片",
+                tint = Color.White,
+                modifier = Modifier.size(14.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ImagePreviewDialog(
+    imageRef: String,
+    onDismiss: () -> Unit
+) {
+    val imageBitmap = rememberEventImageBitmap(imageRef)
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(22.dp),
+            color = NeoSurface,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.72f))
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "关闭预览",
+                        tint = NeoTextMuted,
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .clickable(onClick = onDismiss)
+                            .padding(5.dp)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 220.dp, max = 560.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White.copy(alpha = 0.5f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (imageBitmap != null) {
+                        Image(
+                            bitmap = imageBitmap,
+                            contentDescription = "图片备注预览",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Photo,
+                            contentDescription = null,
+                            tint = NeoTextMuted,
+                            modifier = Modifier.size(42.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun rememberEventImageBitmap(imageRef: String) = with(LocalContext.current) {
+    remember(this, imageRef) {
+        runCatching {
+            val bitmap = if (imageRef.startsWith("content://", ignoreCase = true) ||
+                imageRef.startsWith("file://", ignoreCase = true)
+            ) {
+                contentResolver.openInputStream(Uri.parse(imageRef))?.use { input ->
+                    BitmapFactory.decodeStream(input)
+                }
+            } else {
+                BitmapFactory.decodeFile(imageRef)
+            }
+            bitmap?.asImageBitmap()
+        }.getOrNull()
     }
 }
 
