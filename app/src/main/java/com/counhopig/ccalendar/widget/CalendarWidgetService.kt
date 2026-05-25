@@ -36,6 +36,7 @@ class CalendarRemoteViewsFactory(
 
     private val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
     private val monthOffset = intent.getIntExtra("MONTH_OFFSET", 0)
+    private val compactMode = intent.getBooleanExtra(CalendarWidget.EXTRA_COMPACT_MODE, false)
     private val days = mutableListOf<WidgetDayCell>()
     
     // Store daily events in a map
@@ -111,7 +112,8 @@ class CalendarRemoteViewsFactory(
     override fun getCount(): Int = days.size
 
     override fun getViewAt(position: Int): RemoteViews {
-        val views = RemoteViews(context.packageName, R.layout.widget_day_cell)
+        val layoutId = if (compactMode) R.layout.widget_day_cell_compact else R.layout.widget_day_cell
+        val views = RemoteViews(context.packageName, layoutId)
         if (position >= days.size) return views 
         
         val cell = days[position]
@@ -140,8 +142,14 @@ class CalendarRemoteViewsFactory(
              
         // --- Load Events ---
         val allDailyEvents = if (cell.isTargetMonth) eventsMap[cellDate] ?: emptyList() else emptyList()
-             
-        if (allDailyEvents.isNotEmpty()) {
+
+        if (compactMode) {
+            if (allDailyEvents.isNotEmpty()) {
+                views.setViewVisibility(R.id.cell_more_text, View.VISIBLE)
+                views.setTextColor(R.id.cell_more_text, fontColor)
+                views.setTextViewText(R.id.cell_more_text, "*")
+            }
+        } else if (allDailyEvents.isNotEmpty()) {
             // Function to setup event view
             fun setupEventView(event: Event, textId: Int, bgId: Int, containerId: Int) {
                 views.setViewVisibility(containerId, View.VISIBLE)

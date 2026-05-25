@@ -26,6 +26,7 @@ class CalendarWidget : AppWidgetProvider() {
         const val ACTION_PREV_MONTH = "com.counhopig.ccalendar.widget.action.PREV_MONTH"
         const val ACTION_NEXT_MONTH = "com.counhopig.ccalendar.widget.action.NEXT_MONTH"
         const val EXTRA_WIDGET_ID = "widget_id"
+        const val EXTRA_COMPACT_MODE = "compact_mode"
         const val ACTION_PROVIDER_CHANGED = "android.intent.action.PROVIDER_CHANGED"
     }
 
@@ -91,8 +92,6 @@ internal fun updateAppWidget(
     val repository = WidgetSettingsRepository(context)
     val settings = repository.getSettings()
 
-    val views = RemoteViews(context.packageName, R.layout.widget_calendar)
-    
     // Get month offset for this widget
     val monthOffset = repository.getMonthOffset(appWidgetId)
     val targetMonth = YearMonth.now().plusMonths(monthOffset.toLong())
@@ -130,6 +129,9 @@ internal fun updateAppWidget(
     val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
     val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
     val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
+    val compactMode = (minWidth in 1 until 220) || (minHeight in 1 until 180)
+    val layoutId = if (compactMode) R.layout.widget_calendar_compact else R.layout.widget_calendar
+    val sizedViews = RemoteViews(context.packageName, layoutId)
     // Convert dp to px
     val density = resources.displayMetrics.density
     val widthPx = ((if (minWidth > 0) minWidth else 300) * density).toInt()
@@ -150,27 +152,27 @@ internal fun updateAppWidget(
     val radiusPx = settings.cornerRadius * density
     canvas.drawRoundRect(RectF(0f, 0f, safeW.toFloat(), safeH.toFloat()), radiusPx, radiusPx, paint)
     
-    views.setImageViewBitmap(R.id.widget_background_image, bgBitmap)
+    sizedViews.setImageViewBitmap(R.id.widget_background_image, bgBitmap)
 
 
     // --- 2. Apply Text Colors ---
     val fontColor = settings.fontColor
-    views.setTextColor(R.id.widget_header, fontColor)
-    views.setTextColor(R.id.widget_header_sun, fontColor)
-    views.setTextColor(R.id.widget_header_mon, fontColor)
-    views.setTextColor(R.id.widget_header_tue, fontColor)
-    views.setTextColor(R.id.widget_header_wed, fontColor)
-    views.setTextColor(R.id.widget_header_thu, fontColor)
-    views.setTextColor(R.id.widget_header_fri, fontColor)
-    views.setTextColor(R.id.widget_header_sat, fontColor)
-    views.setTextColor(R.id.widget_prev_month, fontColor)
-    views.setTextColor(R.id.widget_next_month, fontColor)
+    sizedViews.setTextColor(R.id.widget_header, fontColor)
+    sizedViews.setTextColor(R.id.widget_header_sun, fontColor)
+    sizedViews.setTextColor(R.id.widget_header_mon, fontColor)
+    sizedViews.setTextColor(R.id.widget_header_tue, fontColor)
+    sizedViews.setTextColor(R.id.widget_header_wed, fontColor)
+    sizedViews.setTextColor(R.id.widget_header_thu, fontColor)
+    sizedViews.setTextColor(R.id.widget_header_fri, fontColor)
+    sizedViews.setTextColor(R.id.widget_header_sat, fontColor)
+    sizedViews.setTextColor(R.id.widget_prev_month, fontColor)
+    sizedViews.setTextColor(R.id.widget_next_month, fontColor)
 
 
     // Set header with target month
-    val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
+    val formatter = DateTimeFormatter.ofPattern(if (compactMode) "MMM yyyy" else "MMMM yyyy", Locale.getDefault())
     val formattedDate = targetMonth.format(formatter)
-    views.setTextViewText(R.id.widget_header, formattedDate)
+    sizedViews.setTextViewText(R.id.widget_header, formattedDate)
 
     // Click header to open app
     val appIntent = Intent(context, MainActivity::class.java)
@@ -180,7 +182,7 @@ internal fun updateAppWidget(
         appIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
-    views.setOnClickPendingIntent(R.id.widget_header, pendingIntent)
+    sizedViews.setOnClickPendingIntent(R.id.widget_header, pendingIntent)
 
     // Previous month button
     val prevIntent = Intent(context, CalendarWidget::class.java).apply {
@@ -193,7 +195,7 @@ internal fun updateAppWidget(
         prevIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
-    views.setOnClickPendingIntent(R.id.widget_prev_month, prevPendingIntent)
+    sizedViews.setOnClickPendingIntent(R.id.widget_prev_month, prevPendingIntent)
 
     // Next month button
     val nextIntent = Intent(context, CalendarWidget::class.java).apply {
@@ -206,7 +208,7 @@ internal fun updateAppWidget(
         nextIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
-    views.setOnClickPendingIntent(R.id.widget_next_month, nextPendingIntent)
+    sizedViews.setOnClickPendingIntent(R.id.widget_next_month, nextPendingIntent)
 
     // Template intent for the grid items
     val dayIntent = Intent(context, MainActivity::class.java)
@@ -216,19 +218,20 @@ internal fun updateAppWidget(
         dayIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
     )
-    views.setPendingIntentTemplate(R.id.widget_grid_view, dayPendingIntent)
+    sizedViews.setPendingIntentTemplate(R.id.widget_grid_view, dayPendingIntent)
 
     // Set up GridView
     val intent = Intent(context, CalendarWidgetService::class.java).apply {
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         putExtra("FONT_COLOR", fontColor) // Pass settings to service
         putExtra("MONTH_OFFSET", monthOffset) // Pass month offset to service
+        putExtra(CalendarWidget.EXTRA_COMPACT_MODE, compactMode)
         data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
     }
     @Suppress("DEPRECATION")
-    views.setRemoteAdapter(R.id.widget_grid_view, intent)
+    sizedViews.setRemoteAdapter(R.id.widget_grid_view, intent)
 
-    appWidgetManager.updateAppWidget(appWidgetId, views)
+    appWidgetManager.updateAppWidget(appWidgetId, sizedViews)
     @Suppress("DEPRECATION")
     appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.widget_grid_view)
 }

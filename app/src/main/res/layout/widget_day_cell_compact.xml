@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/cell_root"
+    android:layout_width="match_parent"
+    android:layout_height="12dp"
+    android:minHeight="12dp"
+    android:background="@android:color/transparent">
+
+    <TextView
+        android:id="@+id/cell_day_text"
+        android:layout_width="12dp"
+        android:layout_height="12dp"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:text="1"
+        android:textColor="#B7C4E6"
+        android:textSize="7sp" />
+
+    <TextView
+        android:id="@+id/cell_more_text"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="bottom|center_horizontal"
+        android:includeFontPadding="false"
+        android:text="*"
+        android:textColor="#B7C4E6"
+        android:textSize="5sp"
+        android:visibility="gone" />
+
+    <FrameLayout
+        android:id="@+id/cell_event_1"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+
+    <FrameLayout
+        android:id="@+id/cell_event_2"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+
+</FrameLayout>
